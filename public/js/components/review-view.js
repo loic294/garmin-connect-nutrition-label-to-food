@@ -332,7 +332,19 @@ class ReviewView extends HTMLElement {
         throw new Error(data.detail || "Failed to save food");
       }
 
-      this.dispatchEvent(new CustomEvent("save-success", { bubbles: true }));
+      // Extract the food ID so the success view can offer a photo upload
+      const foodId =
+        data?.foodMetaData?.foodId ??
+        data?.foodId ??
+        data?.customFoodId ??
+        null;
+
+      this.dispatchEvent(
+        new CustomEvent("save-success", {
+          bubbles: true,
+          detail: { foodId, imageUrl: this.imageUrl },
+        }),
+      );
     } catch (err) {
       this._saving = false;
       this._error = err.message;

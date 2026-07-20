@@ -10,6 +10,7 @@ const SHELL_ASSETS = [
   "/js/components/login-view.js",
   "/js/components/capture-view.js",
   "/js/components/loading-indicator.js",
+  "/js/components/image-editor.js",
   "/js/components/review-view.js",
   "/js/components/success-view.js",
   "/icons/icon.svg",

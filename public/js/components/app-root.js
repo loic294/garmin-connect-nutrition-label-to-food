@@ -14,7 +14,9 @@ class AppRoot extends HTMLElement {
     /** @type {'boot'|'login'|'capture'|'review'|'success'} */
     this._view = "boot";
     this._imageUrl = null;
+    this._imageFile = null; // Store original File for photo upload
     this._nutrition = null;
+    this._foodId = null;
   }
 
   connectedCallback() {
@@ -39,7 +41,9 @@ class AppRoot extends HTMLElement {
   _navigate(view, extra = {}) {
     this._view = view;
     if (extra.imageUrl !== undefined) this._imageUrl = extra.imageUrl;
+    if (extra.imageFile !== undefined) this._imageFile = extra.imageFile;
     if (extra.nutrition !== undefined) this._nutrition = extra.nutrition;
+    if (extra.foodId !== undefined) this._foodId = extra.foodId;
     this._render();
   }
 
@@ -96,6 +100,7 @@ class AppRoot extends HTMLElement {
         el.addEventListener("analysis-complete", (e) => {
           this._navigate("review", {
             imageUrl: e.detail.imageUrl,
+            imageFile: e.detail.imageFile,
             nutrition: e.detail.nutrition,
           });
         });
@@ -105,14 +110,24 @@ class AppRoot extends HTMLElement {
       case "review": {
         const el = document.createElement("review-view");
         el.imageUrl = this._imageUrl;
+        el.imageFile = this._imageFile;
         el.nutrition = this._nutrition;
-        el.addEventListener("save-success", () => this._navigate("success"));
+        el.addEventListener("save-success", (e) =>
+          this._navigate("success", {
+            foodId: e.detail?.foodId ?? null,
+            imageUrl: e.detail?.imageUrl ?? this._imageUrl,
+            imageFile: this._imageFile,
+          }),
+        );
         el.addEventListener("retake", () => this._navigate("capture"));
         return el;
       }
 
       case "success": {
         const el = document.createElement("success-view");
+        el.foodId = this._foodId;
+        el.imageUrl = this._imageUrl;
+        el.imageFile = this._imageFile;
         el.addEventListener("add-another", () => this._navigate("capture"));
         return el;
       }

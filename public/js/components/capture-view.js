@@ -9,7 +9,7 @@ class CaptureView extends HTMLElement {
   }
 
   disconnectedCallback() {
-    if (this._previewUrl) URL.revokeObjectURL(this._previewUrl);
+    // Don't revoke blob URL here - it's still used by subsequent views
   }
 
   _render() {
@@ -128,7 +128,11 @@ class CaptureView extends HTMLElement {
       this.dispatchEvent(
         new CustomEvent("analysis-complete", {
           bubbles: true,
-          detail: { nutrition: data, imageUrl: this._previewUrl },
+          detail: {
+            nutrition: data,
+            imageUrl: this._previewUrl,
+            imageFile: this._selectedFile,
+          },
         }),
       );
     } catch (err) {

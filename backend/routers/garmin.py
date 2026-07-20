@@ -11,7 +11,7 @@ ever rejects the Bearer token for this specific endpoint, the error message
 returned here will make it clear what happened.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from garminconnect import Garmin
 from garminconnect.exceptions import (
     GarminConnectAuthenticationError,
@@ -145,3 +145,67 @@ async def create_food(
     except Exception:
         # Some Garmin endpoints return an empty 200/201 body
         return {"status": "created"}
+
+
+@router.post("/food/{food_id}/photo")
+@router.post("/food/photo")  # fallback when food_id is unknown
+async def upload_food_photo(
+    file: UploadFile = File(...),
+    food_id: str | None = None,
+    client: Garmin = Depends(get_garmin_client),
+):
+    """
+    Upload a product photo for a custom food entry.
+
+    Garmin's nutrition-service image upload endpoint is not part of the
+    public API and may change.  We try the most likely path; if Garmin
+    returns a 4xx the error is surfaced to the caller with a helpful message.
+    """
+    image_bytes = await file.read()
+    if len(image_bytes) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Image too large (max 20 MB)")
+
+    media_type = file.content_type or "image/jpeg"
+    filename = file.filename or "photo.jpg"
+
+    # Try the most likely endpoint patterns in order.
+    # Garmin uses an image UUID flow internally; the direct multipart path
+    # may work for custom foods created via the API.
+    paths_to_try = []
+    if food_id:
+        paths_to_try += [
+            f"/nutrition-service/customFood/{food_id}/image",
+            f"/nutrition-service/food/{food_id}/image",
+        ]
+    paths_to_try.append("/nutrition-service/customFood/image")
+
+    last_exc: Exception | None = None
+    for path in paths_to_try:
+        try:
+            resp = client.client.post(
+                "connectapi",
+                path,
+                files={"file": (filename, image_bytes, media_type)},
+                api=True,
+            )
+            try:
+                return resp.json()
+            except Exception:
+                return {"status": "uploaded"}
+        except GarminConnectAuthenticationError as exc:
+            raise HTTPException(
+                status_code=401,
+                detail=f"Garmin auth error during photo upload: {exc}",
+            )
+        except Exception as exc:
+            last_exc = exc
+            continue
+
+    raise HTTPException(
+        status_code=502,
+        detail=(
+            "Photo upload is not supported by this Garmin account or the "
+            "API endpoint has changed. The food was saved successfully without a photo. "
+            f"Last error: {last_exc}"
+        ),
+    )
