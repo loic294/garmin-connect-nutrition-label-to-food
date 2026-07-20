@@ -1,0 +1,49 @@
+:root {
+  /* Brand colours */
+  --color-primary: #f5c400;
+  --color-on-primary: #000000;
+  --color-primary-hover: #e0b200;
+
+  /* Surfaces */
+  --color-background: #ffffff;
+  --color-surface: #f4f4f4;
+  --color-surface-alt: #e8e8e8;
+
+  /* Text */
+  --color-text: #000000;
+  --color-text-muted: #555555;
+
+  /* Borders */
+  --color-border: #000000;
+  --color-border-light: #cccccc;
+
+  /* Feedback */
+  --color-error: #cc0000;
+  --color-error-surface: #fff0f0;
+  --color-success: #007700;
+  --color-success-surface: #f0fff0;
+
+  /* Spacing scale */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 40px;
+
+  /* Typography */
+  --font-family: system-ui, -apple-system, sans-serif;
+  --font-size-sm: 0.85rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.15rem;
+  --font-size-xl: 1.4rem;
+  --font-size-2xl: 1.8rem;
+  --font-weight-normal: 400;
+  --font-weight-bold: 700;
+
+  /* Component tokens */
+  --border: 1px solid var(--color-border);
+  --border-light: 1px solid var(--color-border-light);
+  --input-height: 44px;
+  --btn-height: 48px;
+  --header-height: 56px;
+}
