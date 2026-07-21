@@ -17,6 +17,8 @@ class FoodDetail extends HTMLElement {
   }
 
   _render() {
+    console.log("[FoodDetail] _render() with food:", this.food);
+
     this.className = "view";
     this.innerHTML = "";
 
@@ -79,6 +81,27 @@ class FoodDetail extends HTMLElement {
       { label: "Fat", value: this.food.fat, unit: "g" },
       { label: "Fiber", value: this.food.fiber, unit: "g" },
       { label: "Sugar", value: this.food.sugar, unit: "g" },
+      { label: "Added Sugars", value: this.food.addedSugars, unit: "g" },
+      { label: "Saturated Fat", value: this.food.saturatedFat, unit: "g" },
+      {
+        label: "Monounsaturated Fat",
+        value: this.food.monounsaturatedFat,
+        unit: "g",
+      },
+      {
+        label: "Polyunsaturated Fat",
+        value: this.food.polyunsaturatedFat,
+        unit: "g",
+      },
+      { label: "Trans Fat", value: this.food.transFat, unit: "g" },
+      { label: "Cholesterol", value: this.food.cholesterol, unit: "mg" },
+      { label: "Sodium", value: this.food.sodium, unit: "mg" },
+      { label: "Potassium", value: this.food.potassium, unit: "mg" },
+      { label: "Vitamin A", value: this.food.vitaminA, unit: "mcg" },
+      { label: "Vitamin C", value: this.food.vitaminC, unit: "mg" },
+      { label: "Vitamin D", value: this.food.vitaminD, unit: "mcg" },
+      { label: "Calcium", value: this.food.calcium, unit: "mg" },
+      { label: "Iron", value: this.food.iron, unit: "mg" },
     ];
 
     for (const { label, value, unit } of nutrients) {
