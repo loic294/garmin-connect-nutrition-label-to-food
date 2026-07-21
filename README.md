@@ -42,36 +42,15 @@ Your Garmin credentials are never stored or transmitted through this application
 - Anthropic API key (get one at https://console.anthropic.com)
 - Optional: Set `ALLOWED_ORIGINS` if running on a different host
 
-### Setup
+### Quick Start (No Cloning Required)
 
-1. Copy environment template:
-
-```bash
-cp .env.example .env
-```
-
-2. Add your Anthropic API key to `.env`:
-
-```env
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-3. Start the application:
+1. Create a `docker-compose.yml` file:
 
 ```bash
-docker compose up -d
-```
-
-4. Open in browser: http://localhost:8080
-
-### Docker Compose Configuration
-
-```yaml
+cat > docker-compose.yml << 'EOF'
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/loic294/garmin-connect-nutrition-label-to-food:latest
     restart: unless-stopped
     ports:
       - "${PORT:-8080}:8080"
@@ -88,6 +67,34 @@ services:
 
 volumes:
   garmin_tokens:
+EOF
+```
+
+2. Create a `.env` file with your API key:
+
+```bash
+echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
+```
+
+3. Start the application:
+
+```bash
+docker compose up -d
+```
+
+4. Open in browser: http://localhost:8080
+
+### Docker Compose Configuration
+
+The configuration above uses the published Docker image from GitHub Container Registry. If you want to build locally from source instead, clone the repository and use:
+
+```yaml
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # ... rest of config same as above
 ```
 
 ### Environment Variables
