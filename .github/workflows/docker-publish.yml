@@ -1,6 +1,10 @@
 name: Docker Build & Publish
 
 on:
+  # Automatic trigger on push to main
+  push:
+    branches:
+      - main
   # Manual trigger via GitHub Actions UI
   workflow_dispatch:
   # Uncomment to enable automatic builds on release
