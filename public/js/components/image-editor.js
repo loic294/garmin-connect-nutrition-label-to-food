@@ -26,6 +26,7 @@ class ImageEditor extends HTMLElement {
   _brightness = 100;
   _saturation = 100;
   _size = 320; // canvas display size px (recalculated in connectedCallback)
+  _isProcessing = false; // true while processing background removal
 
   // Drag / pinch state
   _drag = null; // { lastX, lastY } | null
@@ -85,6 +86,27 @@ class ImageEditor extends HTMLElement {
         this._draw();
       }),
     );
+
+    // Background removal button (with inline spinner)
+    const bgBtn = document.createElement("button");
+    bgBtn.type = "button";
+    bgBtn.className = "btn-secondary btn-full";
+    bgBtn.disabled = this._isProcessing;
+    bgBtn.style.marginTop = "var(--space-md)";
+    
+    if (this._isProcessing) {
+      // Show spinner inline with "Removing..." text
+      bgBtn.style.cssText = "display: flex; align-items: center; justify-content: center; gap: 8px;";
+      
+      const loader = document.createElement("loading-indicator");
+      loader.message = "Removing…";
+      bgBtn.appendChild(loader);
+    } else {
+      bgBtn.textContent = "Remove Background";
+    }
+    
+    bgBtn.addEventListener("click", () => this._removeBackground());
+    this.appendChild(bgBtn);
 
     // Action buttons
     const actions = document.createElement("div");
@@ -175,9 +197,17 @@ class ImageEditor extends HTMLElement {
         this._minScale,
       );
       this._draw();
+
+      // If we were processing background removal, clear the flag and re-render to hide spinner
+      if (this._isProcessing) {
+        this._isProcessing = false;
+        this._render();
+      }
     };
     img.onerror = (err) => {
       console.error("[ImageEditor] Image load FAILED:", err);
+      // Clear processing flag on error
+      this._isProcessing = false;
       // Surface load failure in the canvas area
       const canvas = this.querySelector("canvas.crop-canvas");
       if (!canvas) {
@@ -261,6 +291,72 @@ class ImageEditor extends HTMLElement {
       "image/jpeg",
       0.92,
     );
+  }
+
+  async _removeBackground() {
+    if (!this._img || this._isProcessing) return;
+
+    this._isProcessing = true;
+    this._render(); // Show spinner overlay
+    console.log("[ImageEditor] Starting background removal...");
+
+    try {
+      // Export at full resolution (not canvas display size)
+      // Render at 2048px without any filters (brightness/saturation)
+      const outputSize = 2048;
+      const ratio = outputSize / this._size;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = outputSize;
+      canvas.height = outputSize;
+      const ctx = canvas.getContext("2d");
+
+      // Draw image WITHOUT brightness/saturation filters for clean background removal
+      const w = this._img.naturalWidth * this._scale * ratio;
+      const h = this._img.naturalHeight * this._scale * ratio;
+      const x = (outputSize - w) / 2 + this._offsetX * ratio;
+      const y = (outputSize - h) / 2 + this._offsetY * ratio;
+      ctx.drawImage(this._img, x, y, w, h);
+
+      const blob = await new Promise((resolve) => {
+        canvas.toBlob(resolve, "image/jpeg", 0.95);
+      });
+
+      // Send to backend for Anthropic processing
+      const formData = new FormData();
+      formData.append("file", blob, "image.jpg");
+
+      const res = await fetch("/api/analyze/remove-background", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(
+          error.detail || `Background removal failed (${res.status})`,
+        );
+      }
+
+      // Get processed image and reload canvas
+      const processedBlob = await res.blob();
+      const url = URL.createObjectURL(processedBlob);
+
+      // Clear current image state
+      if (this.srcUrl && this.srcUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(this.srcUrl);
+      }
+
+      // Reload with processed image
+      this.srcUrl = url;
+      this._loadImage();
+      console.log("[ImageEditor] Background removal complete");
+    } catch (err) {
+      console.error("[ImageEditor] Background removal error:", err);
+      alert(`Background removal failed: ${err.message}`);
+      this._isProcessing = false;
+      this._render(); // Hide spinner on error
+    }
   }
 
   // ─── Pointer / touch events ────────────────────────────────────────────────

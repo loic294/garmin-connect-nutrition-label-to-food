@@ -148,6 +148,22 @@ class ReviewView extends HTMLElement {
       form.appendChild(desc);
     }
 
+    // ── Context/Notes ─────────────────────────────────────────────
+    form.appendChild(
+      this._textField(
+        "parsingContext",
+        "Parsing context (optional)",
+        "",
+        false,
+      ),
+    );
+    const contextHint = document.createElement("p");
+    contextHint.style.cssText =
+      "font-size:var(--font-size-sm); color:var(--color-text-muted); margin-bottom:var(--space-md);";
+    contextHint.textContent =
+      "E.g., 'multiply by 2.5 servings' or 'whole package' to help adjust the parsed values";
+    form.appendChild(contextHint);
+
     // ── Macros ────────────────────────────────────────────────────
     this._appendSectionTitle(form, "Macronutrients");
     const macroGrid = document.createElement("div");
@@ -287,6 +303,7 @@ class ReviewView extends HTMLElement {
     return {
       foodName: fd.get("foodName") || "",
       brandName: fd.get("brandName") || "Homemade",
+      parsingContext: fd.get("parsingContext") || "",
       nutrition: {
         servingUnit: fd.get("servingUnit") || "SERVING",
         numberOfUnits: fd.get("numberOfUnits") || "1",

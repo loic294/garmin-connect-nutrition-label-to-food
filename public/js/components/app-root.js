@@ -31,6 +31,7 @@ class AppRoot extends HTMLElement {
     this._nutrition = null;
     this._foodId = null;
     this._food = null; // Current food being viewed
+    this._isEditingPhoto = false; // true when navigating from edit photo in detail view
   }
 
   connectedCallback() {
@@ -124,6 +125,8 @@ class AppRoot extends HTMLElement {
     if (extra.nutrition !== undefined) this._nutrition = extra.nutrition;
     if (extra.foodId !== undefined) this._foodId = extra.foodId;
     if (extra.food !== undefined) this._food = extra.food;
+    if (extra.isEditingPhoto !== undefined)
+      this._isEditingPhoto = extra.isEditingPhoto;
 
     // Generate URL based on view
     const url = this._getUrl(view, { foodId: this._foodId });
@@ -136,6 +139,7 @@ class AppRoot extends HTMLElement {
       nutrition: this._nutrition,
       foodId: this._foodId,
       food: this._food,
+      isEditingPhoto: this._isEditingPhoto,
     };
     window.history.pushState(state, "", url);
 
@@ -234,6 +238,7 @@ class AppRoot extends HTMLElement {
           this._navigate("success", {
             foodId: e.detail.foodId,
             food: e.detail.food,
+            isEditingPhoto: true,
           });
         });
         el.addEventListener("edit-food", (e) => {
@@ -276,6 +281,8 @@ class AppRoot extends HTMLElement {
         el.foodId = this._foodId;
         el.imageUrl = this._imageUrl;
         el.imageFile = this._imageFile;
+        el.isUpdate = !!this._foodId;
+        el.isEditingPhoto = this._isEditingPhoto;
         el.addEventListener("add-another", () => this._navigate("foods"));
         return el;
       }

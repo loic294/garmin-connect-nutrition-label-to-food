@@ -10,6 +10,7 @@ import re
 
 import anthropic
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request
+from fastapi.responses import FileResponse, Response
 
 router = APIRouter()
 
@@ -123,3 +124,49 @@ async def analyze(request: Request, file: UploadFile = File(...)):
         )
 
     return nutrition
+
+
+@router.post("/analyze/remove-background")
+async def remove_background(file: UploadFile = File(...)):
+    """
+    Remove the background from an image using rembg (deep learning model).
+    Returns a PNG with white background (opaque).
+    """
+    import io
+    from PIL import Image
+    from rembg import remove
+    
+    image_bytes = await file.read()
+    if len(image_bytes) > 20 * 1024 * 1024:  # 20 MB guard
+        raise HTTPException(status_code=413, detail="Image too large (max 20 MB)")
+
+    try:
+        # Load image
+        input_img = Image.open(io.BytesIO(image_bytes))
+        
+        # Remove background using rembg (returns RGBA with transparency)
+        output_img = remove(input_img)
+        
+        # Create white background image
+        white_bg = Image.new("RGB", output_img.size, color=(255, 255, 255))
+        
+        # Composite the transparent image over white background
+        white_bg.paste(output_img, mask=output_img.split()[3] if output_img.mode == "RGBA" else None)
+        
+        # Save as PNG
+        output = io.BytesIO()
+        white_bg.save(output, format="PNG", optimize=False)
+        output.seek(0)
+        
+        # Return the PNG with white background
+        return Response(
+            content=output.getvalue(),
+            media_type="image/png",
+            headers={"Content-Disposition": "attachment; filename=background-removed.png"},
+        )
+    
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Background removal failed: {exc}",
+        )

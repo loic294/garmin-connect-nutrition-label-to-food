@@ -107,17 +107,76 @@ class CaptureView extends HTMLElement {
     this.appendChild(inner);
   }
 
-  _onFileSelected(e) {
+  async _onFileSelected(e) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    this._selectedFile = file;
     this._error = "";
 
-    if (this._previewUrl) URL.revokeObjectURL(this._previewUrl);
-    this._previewUrl = URL.createObjectURL(file);
+    try {
+      // Resize image to max 2048px
+      this._selectedFile = await this._resizeImage(file);
 
-    this._render();
+      if (this._previewUrl) URL.revokeObjectURL(this._previewUrl);
+      this._previewUrl = URL.createObjectURL(this._selectedFile);
+
+      this._render();
+    } catch (err) {
+      this._error = "Failed to process image: " + err.message;
+      this._render();
+    }
+  }
+
+  async _resizeImage(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const maxSize = 2048;
+          let width = img.width;
+          let height = img.height;
+
+          // Calculate new dimensions, maintaining aspect ratio
+          if (width > height && width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          } else if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+
+          // Create canvas and draw resized image
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Convert canvas to blob
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error("Failed to create blob from canvas"));
+              } else {
+                // Create new File object with resized blob
+                const resizedFile = new File([blob], file.name, {
+                  type: "image/jpeg",
+                  lastModified: Date.now(),
+                });
+                resolve(resizedFile);
+              }
+            },
+            "image/jpeg",
+            0.92,
+          );
+        };
+        img.onerror = () => reject(new Error("Failed to load image"));
+        img.src = event.target.result;
+      };
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsDataURL(file);
+    });
   }
 
   async _analyze() {

@@ -15,6 +15,10 @@ class SuccessView extends HTMLElement {
   imageUrl = null;
   /** @type {File|null} Original File object for the nutrition label photo */
   imageFile = null;
+  /** @type {boolean} True if updating an existing food, false if creating new */
+  isUpdate = false;
+  /** @type {boolean} True if navigating from edit photo on food detail (skip prompt) */
+  isEditingPhoto = false;
 
   _phase = "prompt";
   _editSrcUrl = null; // URL fed into <image-editor>
@@ -29,7 +33,13 @@ class SuccessView extends HTMLElement {
       this.imageUrl ? "blob-url" : "null",
       "imageFile:",
       this.imageFile ? "File" : "null",
+      "isEditingPhoto:",
+      this.isEditingPhoto,
     );
+    // If editing photo from detail view, skip prompt and go to pick
+    if (this.isEditingPhoto) {
+      this._phase = "pick";
+    }
     this._render();
   }
 
@@ -88,14 +98,15 @@ class SuccessView extends HTMLElement {
 
     const title = document.createElement("h2");
     title.style.cssText = "text-align:center; margin-bottom:var(--space-sm);";
-    title.textContent = "Food saved!";
+    title.textContent = this.isUpdate ? "Update food" : "Food saved!";
     inner.appendChild(title);
 
     const desc = document.createElement("p");
     desc.style.cssText =
       "color:var(--color-text-muted); text-align:center; margin-bottom:var(--space-lg);";
-    desc.textContent =
-      "The food has been added to your Garmin Connect custom foods.";
+    desc.textContent = this.isUpdate
+      ? "The food has been updated in your Garmin Connect custom foods."
+      : "The food has been added to your Garmin Connect custom foods.";
     inner.appendChild(desc);
 
     if (this._error) {
@@ -311,16 +322,78 @@ class SuccessView extends HTMLElement {
 
   // ─── Event handlers ────────────────────────────────────────────────────────
 
-  _onFileSelected(e) {
+  async _onFileSelected(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (this._editSrcUrl && this._editSrcUrl !== this.imageUrl) {
-      URL.revokeObjectURL(this._editSrcUrl);
+
+    try {
+      // Resize image to max 2048px
+      const resizedFile = await this._resizeImage(file);
+
+      if (this._editSrcUrl && this._editSrcUrl !== this.imageUrl) {
+        URL.revokeObjectURL(this._editSrcUrl);
+      }
+
+      this._editFile = resizedFile;
+      this._editSrcUrl = URL.createObjectURL(resizedFile);
+      this._phase = "edit";
+      this._render();
+    } catch (err) {
+      console.error("[SuccessView] Failed to resize image:", err);
+      alert("Failed to process image: " + err.message);
     }
-    this._editFile = file;
-    this._editSrcUrl = URL.createObjectURL(file);
-    this._phase = "edit";
-    this._render();
+  }
+
+  async _resizeImage(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const maxSize = 2048;
+          let width = img.width;
+          let height = img.height;
+
+          // Calculate new dimensions, maintaining aspect ratio
+          if (width > height && width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          } else if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+
+          // Create canvas and draw resized image
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Convert canvas to blob
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error("Failed to create blob from canvas"));
+              } else {
+                // Create new File object with resized blob
+                const resizedFile = new File([blob], file.name, {
+                  type: "image/jpeg",
+                  lastModified: Date.now(),
+                });
+                resolve(resizedFile);
+              }
+            },
+            "image/jpeg",
+            0.92,
+          );
+        };
+        img.onerror = () => reject(new Error("Failed to load image"));
+        img.src = event.target.result;
+      };
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsDataURL(file);
+    });
   }
 
   async _onEditDone(blob) {
