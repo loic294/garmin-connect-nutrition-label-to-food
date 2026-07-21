@@ -22,6 +22,14 @@ class SuccessView extends HTMLElement {
   _error = "";
 
   connectedCallback() {
+    console.log(
+      "[SuccessView] connectedCallback. foodId:",
+      this.foodId,
+      "imageUrl:",
+      this.imageUrl ? "blob-url" : "null",
+      "imageFile:",
+      this.imageFile ? "File" : "null",
+    );
     this._render();
   }
 
@@ -34,6 +42,14 @@ class SuccessView extends HTMLElement {
   // ─── Top-level render ──────────────────────────────────────────────────────
 
   _render() {
+    console.log(
+      "[SuccessView] _render() phase:",
+      this._phase,
+      "editSrcUrl:",
+      this._editSrcUrl ? "valid-url" : "null",
+      "error:",
+      this._error || "none",
+    );
     this.className = "view";
     this.innerHTML = "";
 
@@ -138,11 +154,20 @@ class SuccessView extends HTMLElement {
   // ─── Pick phase ────────────────────────────────────────────────────────────
 
   _renderPick(inner) {
-    // Hidden file input — opens native camera on mobile
+    // Hidden file inputs
+    // Camera input: "capture=environment" opens rear camera on mobile
+    const cameraInput = document.createElement("input");
+    cameraInput.type = "file";
+    cameraInput.accept = "image/*";
+    cameraInput.setAttribute("capture", "environment");
+    cameraInput.style.display = "none";
+    cameraInput.addEventListener("change", (e) => this._onFileSelected(e));
+    inner.appendChild(cameraInput);
+
+    // File picker input: no capture attribute, opens library/files
     const fileInput = document.createElement("input");
     fileInput.type = "file";
     fileInput.accept = "image/*";
-    fileInput.setAttribute("capture", "environment");
     fileInput.style.display = "none";
     fileInput.addEventListener("change", (e) => this._onFileSelected(e));
     inner.appendChild(fileInput);
@@ -188,13 +213,24 @@ class SuccessView extends HTMLElement {
       inner.appendChild(orDivider);
     }
 
-    // Option B: take / choose a new photo
-    const captureBtn = document.createElement("button");
-    captureBtn.className = "btn-secondary btn-full";
-    captureBtn.style.marginBottom = "var(--space-sm)";
-    captureBtn.textContent = "Take / choose a different photo";
-    captureBtn.addEventListener("click", () => fileInput.click());
-    inner.appendChild(captureBtn);
+    // Option B: take a new photo or choose from library (split into two buttons)
+    const photoActions = document.createElement("div");
+    photoActions.style.cssText =
+      "display:flex; flex-direction:column; gap:var(--space-sm); margin-bottom:var(--space-sm);";
+
+    const takeBtn = document.createElement("button");
+    takeBtn.className = "btn-secondary btn-full";
+    takeBtn.textContent = "Take a new photo";
+    takeBtn.addEventListener("click", () => cameraInput.click());
+    photoActions.appendChild(takeBtn);
+
+    const chooseBtn = document.createElement("button");
+    chooseBtn.className = "btn-secondary btn-full";
+    chooseBtn.textContent = "Choose from library";
+    chooseBtn.addEventListener("click", () => fileInput.click());
+    photoActions.appendChild(chooseBtn);
+
+    inner.appendChild(photoActions);
 
     const skipBtn = document.createElement("button");
     skipBtn.className = "btn-secondary btn-full";
@@ -209,6 +245,14 @@ class SuccessView extends HTMLElement {
   // ─── Edit phase ────────────────────────────────────────────────────────────
 
   _renderEdit() {
+    console.log(
+      "[SuccessView] _renderEdit() starting. _editSrcUrl:",
+      this._editSrcUrl ? "exists" : "null",
+      "_editFile:",
+      this._editFile ? "exists" : "null",
+      "imageFile:",
+      this.imageFile ? "exists" : "null",
+    );
     this.innerHTML = "";
 
     const inner = document.createElement("div");
@@ -221,18 +265,24 @@ class SuccessView extends HTMLElement {
     inner.appendChild(heading);
 
     const editor = document.createElement("image-editor");
-    
+
     // Use imageFile directly if available for better reliability
     // Otherwise fall back to the blob URL
     let srcUrl = this._editSrcUrl;
     if (this._editFile && !srcUrl) {
       srcUrl = URL.createObjectURL(this._editFile);
+      console.log("[SuccessView] Creating blob URL from _editFile");
       this._editSrcUrl = srcUrl; // cache it for potential cleanup
     } else if (!srcUrl && this.imageFile) {
       srcUrl = URL.createObjectURL(this.imageFile);
+      console.log("[SuccessView] Creating blob URL from imageFile");
       this._editSrcUrl = srcUrl;
     }
-    
+
+    console.log(
+      "[SuccessView] Setting image-editor srcUrl:",
+      srcUrl ? "valid-url" : "NULL!",
+    );
     editor.srcUrl = srcUrl;
 
     editor.addEventListener("edit-done", (e) =>

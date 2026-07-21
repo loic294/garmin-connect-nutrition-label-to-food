@@ -32,8 +32,10 @@ class ImageEditor extends HTMLElement {
   _pinch = null; // { dist, initScale } | null
 
   connectedCallback() {
+    console.log("[ImageEditor] connectedCallback: srcUrl=", this.srcUrl);
     // Fit the canvas to the available width (minus 32 px padding), max 400
     this._size = Math.min(400, (window.innerWidth || 400) - 32);
+    console.log("[ImageEditor] canvas size:", this._size, "px");
     this._render();
     this._loadImage();
   }
@@ -144,8 +146,19 @@ class ImageEditor extends HTMLElement {
   // ─── Image loading ─────────────────────────────────────────────────────────
 
   _loadImage() {
+    console.log("[ImageEditor] _loadImage() called with srcUrl=", this.srcUrl);
+    if (!this.srcUrl) {
+      console.error("[ImageEditor] ERROR: srcUrl is null/undefined!");
+      return;
+    }
     const img = new Image();
     img.onload = () => {
+      console.log(
+        "[ImageEditor] Image loaded successfully. naturalSize:",
+        img.naturalWidth,
+        "x",
+        img.naturalHeight,
+      );
       this._img = img;
       // Scale so the image covers the square canvas (like object-fit:cover)
       this._scale = Math.max(
@@ -155,26 +168,55 @@ class ImageEditor extends HTMLElement {
       this._minScale = this._scale * 0.5;
       this._offsetX = 0;
       this._offsetY = 0;
+      console.log(
+        "[ImageEditor] scale:",
+        this._scale,
+        "minScale:",
+        this._minScale,
+      );
       this._draw();
     };
-    img.onerror = () => {
+    img.onerror = (err) => {
+      console.error("[ImageEditor] Image load FAILED:", err);
       // Surface load failure in the canvas area
       const canvas = this.querySelector("canvas.crop-canvas");
-      if (!canvas) return;
+      if (!canvas) {
+        console.error("[ImageEditor] Canvas element not found!");
+        return;
+      }
       const ctx = canvas.getContext("2d");
       ctx.fillStyle = "#cc0000";
       ctx.font = "14px system-ui";
       ctx.fillText("Failed to load image", 8, this._size / 2);
     };
     img.src = this.srcUrl;
+    console.log("[ImageEditor] Image.src assigned, waiting for load event...");
   }
 
   // ─── Canvas drawing ────────────────────────────────────────────────────────
 
   _draw() {
     const canvas = this.querySelector("canvas.crop-canvas");
-    if (!canvas || !this._img) return;
+    if (!canvas) {
+      console.warn("[ImageEditor] _draw() called but canvas not found");
+      return;
+    }
+    if (!this._img) {
+      console.warn("[ImageEditor] _draw() called but image not loaded yet");
+      return;
+    }
 
+    console.log(
+      "[ImageEditor] _draw() rendering. offset:",
+      this._offsetX,
+      this._offsetY,
+      "scale:",
+      this._scale,
+      "brightness:",
+      this._brightness,
+      "saturation:",
+      this._saturation,
+    );
     const ctx = canvas.getContext("2d");
     const s = this._size;
     ctx.clearRect(0, 0, s, s);

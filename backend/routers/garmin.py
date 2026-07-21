@@ -80,6 +80,116 @@ class CreateFoodRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+@router.get("/foods")
+async def get_custom_foods(client: Garmin = Depends(get_garmin_client)):
+    """
+    Fetch the list of custom foods for the authenticated user.
+    Returns a list with nutrition details and image URL.
+    """
+    try:
+        # Use the authenticated client to call the Garmin API directly via request()
+        response = client.client.request(
+            "GET",
+            "connectapi",
+            "/nutrition-service/customFood?searchExpression=&start=0&limit=20&includeContent=true",
+            api=True
+        )
+        foods_data = response.json()
+        
+        # Extract and simplify the foods list
+        simplified_foods = []
+        foods_list = foods_data.get("customFoods", [])
+        
+        for food in foods_list:
+            food_metadata = food.get("foodMetaData", {})
+            # Get the first nutrition content (most common serving)
+            nutrition_list = food.get("nutritionContents", [])
+            nutrition = nutrition_list[0] if nutrition_list else {}
+            
+            # Get image URL if available
+            image_url = None
+            if food.get("foodImages"):
+                image_url = food["foodImages"][0].get("imageUrl")
+            
+            simplified_foods.append({
+                "foodId": food_metadata.get("foodId"),
+                "foodName": food_metadata.get("foodName"),
+                "brandName": food_metadata.get("brandName", ""),
+                "calories": nutrition.get("calories", 0),
+                "carbs": nutrition.get("carbs"),
+                "protein": nutrition.get("protein"),
+                "fat": nutrition.get("fat"),
+                "fiber": nutrition.get("fiber"),
+                "servingUnit": nutrition.get("servingUnit", "SERVING"),
+                "numberOfUnits": nutrition.get("numberOfUnits", 1),
+                "imageUrl": image_url,
+                # Full nutrition object for detail view
+                "nutrition": nutrition,
+            })
+        
+        return simplified_foods
+    except GarminConnectAuthenticationError as exc:
+        raise HTTPException(status_code=401, detail=f"Auth failed: {exc}")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch foods: {exc}")
+
+
+@router.get("/food/{food_id}")
+async def get_food_detail(
+    food_id: str,
+    client: Garmin = Depends(get_garmin_client),
+):
+    """
+    Fetch a single custom food by ID.
+    """
+    try:
+        # Fetch all foods and find the one with matching foodId
+        response = client.client.request(
+            "GET",
+            "connectapi",
+            "/nutrition-service/customFood?searchExpression=&start=0&limit=20&includeContent=true",
+            api=True
+        )
+        foods_data = response.json()
+        foods_list = foods_data.get("customFoods", [])
+        
+        for food in foods_list:
+            food_metadata = food.get("foodMetaData", {})
+            if food_metadata.get("foodId") == food_id:
+                # Get the first nutrition content (most common serving)
+                nutrition_list = food.get("nutritionContents", [])
+                nutrition = nutrition_list[0] if nutrition_list else {}
+                
+                # Get image URL if available
+                image_url = None
+                if food.get("foodImages"):
+                    image_url = food["foodImages"][0].get("imageUrl")
+                
+                return {
+                    "foodId": food_metadata.get("foodId"),
+                    "foodName": food_metadata.get("foodName"),
+                    "brandName": food_metadata.get("brandName", ""),
+                    "calories": nutrition.get("calories", 0),
+                    "carbs": nutrition.get("carbs"),
+                    "protein": nutrition.get("protein"),
+                    "fat": nutrition.get("fat"),
+                    "fiber": nutrition.get("fiber"),
+                    "sugar": nutrition.get("sugar"),
+                    "servingUnit": nutrition.get("servingUnit", "SERVING"),
+                    "numberOfUnits": nutrition.get("numberOfUnits", 1),
+                    "imageUrl": image_url,
+                    "nutrition": nutrition,
+                }
+        
+        raise HTTPException(status_code=404, detail="Food not found")
+    except HTTPException:
+        raise
+    except GarminConnectAuthenticationError as exc:
+        raise HTTPException(status_code=401, detail=f"Auth failed: {exc}")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch food: {exc}")
+
+
 @router.post("/food")
 async def create_food(
     body: CreateFoodRequest,
@@ -156,11 +266,11 @@ async def upload_food_photo(
 ):
     """
     Upload a product photo for a custom food entry.
-
-    Garmin's nutrition-service image upload endpoint is not part of the
-    public API and may change.  We try the most likely path; if Garmin
-    returns a 4xx the error is surfaced to the caller with a helpful message.
+    Uses Garmin's food image upload endpoint: /nutrition-service/food/upload-image/NUTRITION_CUSTOM_FOOD/{foodId}
     """
+    if not food_id:
+        raise HTTPException(status_code=400, detail="food_id is required")
+    
     image_bytes = await file.read()
     if len(image_bytes) > 20 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Image too large (max 20 MB)")
@@ -168,44 +278,26 @@ async def upload_food_photo(
     media_type = file.content_type or "image/jpeg"
     filename = file.filename or "photo.jpg"
 
-    # Try the most likely endpoint patterns in order.
-    # Garmin uses an image UUID flow internally; the direct multipart path
-    # may work for custom foods created via the API.
-    paths_to_try = []
-    if food_id:
-        paths_to_try += [
-            f"/nutrition-service/customFood/{food_id}/image",
-            f"/nutrition-service/food/{food_id}/image",
-        ]
-    paths_to_try.append("/nutrition-service/customFood/image")
-
-    last_exc: Exception | None = None
-    for path in paths_to_try:
+    try:
+        resp = client.client.post(
+            "connectapi",
+            f"/nutrition-service/food/upload-image/NUTRITION_CUSTOM_FOOD/{food_id}",
+            files={"file": (filename, image_bytes, media_type)},
+            api=True,
+        )
         try:
-            resp = client.client.post(
-                "connectapi",
-                path,
-                files={"file": (filename, image_bytes, media_type)},
-                api=True,
-            )
-            try:
-                return resp.json()
-            except Exception:
-                return {"status": "uploaded"}
-        except GarminConnectAuthenticationError as exc:
-            raise HTTPException(
-                status_code=401,
-                detail=f"Garmin auth error during photo upload: {exc}",
-            )
-        except Exception as exc:
-            last_exc = exc
-            continue
-
-    raise HTTPException(
-        status_code=502,
-        detail=(
-            "Photo upload is not supported by this Garmin account or the "
-            "API endpoint has changed. The food was saved successfully without a photo. "
-            f"Last error: {last_exc}"
-        ),
-    )
+            return resp.json()
+        except Exception:
+            return {"status": "uploaded"}
+    except GarminConnectAuthenticationError as exc:
+        raise HTTPException(
+            status_code=401,
+            detail=f"Garmin auth error during photo upload: {exc}",
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"Photo upload failed: {exc}"
+            ),
+        )

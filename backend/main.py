@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from routers import auth, analyze, garmin
@@ -67,6 +68,26 @@ async def health():
     return {"status": "ok"}
 
 
-# Serve the PWA — must be last so API routes take precedence
-if PUBLIC_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(PUBLIC_DIR), html=True), name="static")
+@app.get("/{full_path:path}")
+async def serve_spa_or_static(full_path: str):
+    """
+    Serve static files or fallback to index.html for SPA routing.
+    This handles both actual files and SPA routes.
+    """
+    # Try to serve the requested file
+    requested_path = PUBLIC_DIR / full_path
+    if requested_path.exists() and requested_path.is_file():
+        return FileResponse(requested_path)
+    
+    # If it's a directory, try index.html
+    if requested_path.exists() and requested_path.is_dir():
+        index_path = requested_path / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+    
+    # Otherwise, serve index.html for SPA routing
+    index_path = PUBLIC_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    
+    return {"error": "Not found"}

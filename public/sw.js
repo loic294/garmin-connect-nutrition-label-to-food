@@ -8,6 +8,8 @@ const SHELL_ASSETS = [
   "/js/app.js",
   "/js/components/app-root.js",
   "/js/components/login-view.js",
+  "/js/components/foods-view.js",
+  "/js/components/food-detail.js",
   "/js/components/capture-view.js",
   "/js/components/loading-indicator.js",
   "/js/components/image-editor.js",

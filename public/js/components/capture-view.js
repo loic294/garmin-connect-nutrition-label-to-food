@@ -35,11 +35,20 @@ class CaptureView extends HTMLElement {
       inner.appendChild(err);
     }
 
-    // Hidden file input — "capture=environment" opens rear camera on mobile
+    // Hidden file inputs
+    // Camera input: "capture=environment" opens rear camera on mobile
+    const cameraInput = document.createElement("input");
+    cameraInput.type = "file";
+    cameraInput.accept = "image/*";
+    cameraInput.setAttribute("capture", "environment");
+    cameraInput.style.display = "none";
+    cameraInput.addEventListener("change", (e) => this._onFileSelected(e));
+    inner.appendChild(cameraInput);
+
+    // File picker input: no capture attribute, opens library/files
     const fileInput = document.createElement("input");
     fileInput.type = "file";
     fileInput.accept = "image/*";
-    fileInput.setAttribute("capture", "environment");
     fileInput.style.display = "none";
     fileInput.addEventListener("change", (e) => this._onFileSelected(e));
     inner.appendChild(fileInput);
@@ -69,14 +78,21 @@ class CaptureView extends HTMLElement {
     actions.style.cssText =
       "display:flex; flex-direction:column; gap:var(--space-sm); margin-top:var(--space-md);";
 
-    // Take / choose photo button
-    const captureBtn = document.createElement("button");
-    captureBtn.className = "btn-full";
-    captureBtn.textContent = this._selectedFile
-      ? "Retake / Change photo"
-      : "Take or choose a photo";
-    captureBtn.addEventListener("click", () => fileInput.click());
-    actions.appendChild(captureBtn);
+    // Take a photo button (camera)
+    const takeBtn = document.createElement("button");
+    takeBtn.className = "btn-full";
+    takeBtn.textContent = this._selectedFile
+      ? "Take another photo"
+      : "Take a photo";
+    takeBtn.addEventListener("click", () => cameraInput.click());
+    actions.appendChild(takeBtn);
+
+    // Choose from library button (file picker)
+    const chooseBtn = document.createElement("button");
+    chooseBtn.className = "btn-full btn-secondary";
+    chooseBtn.textContent = "Choose from library";
+    chooseBtn.addEventListener("click", () => fileInput.click());
+    actions.appendChild(chooseBtn);
 
     // Analyze button — only shown once a file is selected
     if (this._selectedFile) {
