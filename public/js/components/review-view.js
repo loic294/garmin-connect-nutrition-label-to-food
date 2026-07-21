@@ -342,6 +342,13 @@ class ReviewView extends HTMLElement {
         data?.customFoodId ??
         null;
 
+      if (!foodId) {
+        console.error(
+          "ERROR: Failed to extract foodId from response. Cannot proceed to photo upload.",
+          data,
+        );
+      }
+
       this.dispatchEvent(
         new CustomEvent("save-success", {
           bubbles: true,

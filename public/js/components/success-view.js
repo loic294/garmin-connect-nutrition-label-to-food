@@ -405,14 +405,22 @@ class SuccessView extends HTMLElement {
       const form = new FormData();
       form.append("file", blob, "photo.jpg");
 
+      const isNew = !this.isUpdate; // isUpdate=false means new food
       const url = this.foodId
-        ? `/api/garmin/food/${encodeURIComponent(this.foodId)}/photo`
+        ? `/api/garmin/food/${encodeURIComponent(this.foodId)}/photo?isNew=${isNew}`
         : "/api/garmin/food/photo";
 
       const res = await fetch(url, { method: "POST", body: form });
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) throw new Error(data.detail || "Photo upload failed");
+
+      // Wait for Garmin to index the photo before marking complete
+      // This ensures the photo will appear when the food is fetched again
+      console.log(
+        "[SuccessView] Photo uploaded, waiting for Garmin to process...",
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1500));
 
       this._phase = "done";
       this._render();

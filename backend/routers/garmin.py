@@ -298,8 +298,12 @@ async def create_food(
     }
 
     try:
-        response = client.client.put(
-            "connectapi", GARMIN_CUSTOM_FOOD_PATH, json=payload, api=True
+        response = client.client.request(
+            "PUT",
+            "connectapi",
+            GARMIN_CUSTOM_FOOD_PATH,
+            json=payload,
+            api=True
         )
     except GarminConnectAuthenticationError as exc:
         raise HTTPException(
@@ -314,44 +318,33 @@ async def create_food(
         raise HTTPException(status_code=502, detail=f"Garmin request failed: {exc}")
 
     try:
-        response_data = response.json()
+        # client.client.request() returns a dict directly, not a response object
+        response_data = response if isinstance(response, dict) else response.json()
         logger.info(f"Garmin create_food response: {json.dumps(response_data, indent=2, default=str)}")
         
-        # After creating the food, fetch the foods list to get the newly created food's ID
-        # Garmin's create response may not always include the foodId, so we fetch the list
-        try:
-            foods_response = client.client.request(
-                "GET",
-                "connectapi",
-                "/nutrition-service/customFood?searchExpression=&start=0&limit=20&includeContent=true",
-                api=True
-            )
-            foods_data = foods_response.json()
-            foods_list = foods_data.get("customFoods", [])
-            
-            if foods_list:
-                # Get the first food (usually the most recently created)
-                newest_food = foods_list[0]
-                food_metadata = newest_food.get("foodMetaData", {})
-                food_id = food_metadata.get("foodId")
-                
-                if food_id:
-                    logger.info(f"Extracted newly created food ID: {food_id}")
-                    # Return the newly created food with all its details
-                    return {
-                        "foodMetaData": food_metadata,
-                        "foodId": food_id,  # Include foodId at top level for easy access
-                        "customFoodId": food_id,
-                        "nutritionContents": newest_food.get("nutritionContents", []),
-                        "foodImages": newest_food.get("foodImages", []),
-                    }
-        except Exception as e:
-            logger.warning(f"Failed to fetch newly created food ID: {e}")
+        # Extract foodId directly from the create response
+        food_metadata = response_data.get("foodMetaData", {})
+        food_id = food_metadata.get("foodId")
+        
+        if not food_id:
+            logger.error(f"ERROR: foodId not found in create response. Full response: {json.dumps(response_data, indent=2, default=str)}")
+            raise HTTPException(status_code=502, detail="Food created but foodId not returned")
+        
+        logger.info(f"Successfully created food with ID: {food_id}")
+        
+        # Return the created food with all its details
+        return {
+            "foodMetaData": food_metadata,
+            "foodId": food_id,  # Include foodId at top level for easy access
+            "customFoodId": food_id,
+            "nutritionContents": response_data.get("nutritionContents", []),
+            "foodImages": response_data.get("foodImages", []),
+        }
         
         return response_data
     except Exception as e:
         # Some Garmin endpoints return an empty 200/201 body
-        logger.warning(f"Failed to parse Garmin response as JSON: {e}")
+        logger.error(f"ERROR: Failed to parse Garmin response as JSON: {e}", exc_info=True)
         return {"status": "created"}
 
 
@@ -360,11 +353,15 @@ async def create_food(
 async def upload_food_photo(
     file: UploadFile = File(...),
     food_id: str | None = None,
+    is_new: bool = False,
     client: Garmin = Depends(get_garmin_client),
 ):
     """
     Upload a product photo for a custom food entry.
     Uses Garmin's food image upload endpoint: /nutrition-service/food/upload-image/NUTRITION_CUSTOM_FOOD/{foodId}
+    
+    Parameters:
+    - is_new: True if this is a newly created food (requires photo association)
     """
     if not food_id:
         raise HTTPException(status_code=400, detail="food_id is required")
@@ -377,22 +374,90 @@ async def upload_food_photo(
     filename = file.filename or "photo.jpg"
 
     try:
+        # client.client.post() returns a dict directly
         resp = client.client.post(
             "connectapi",
             f"/nutrition-service/food/upload-image/NUTRITION_CUSTOM_FOOD/{food_id}",
             files={"file": (filename, image_bytes, media_type)},
             api=True,
         )
-        try:
-            return resp.json()
-        except Exception:
-            return {"status": "uploaded"}
+        logger.info(f"Photo upload response for food {food_id}: {json.dumps(resp, indent=2, default=str)}")
+        
+        # Verify response indicates success
+        if resp is None:
+            logger.error(f"ERROR: Photo upload returned None for food {food_id}")
+            raise HTTPException(
+                status_code=502,
+                detail="Photo upload failed: Garmin returned no response"
+            )
+        
+        # Extract mediaUuid from response
+        media_uuid = resp.get("mediaUuid")
+        if not media_uuid:
+            logger.error(f"ERROR: No mediaUuid in photo upload response for food {food_id}")
+            raise HTTPException(
+                status_code=502,
+                detail="Photo upload failed: No mediaUuid returned"
+            )
+        
+        # For NEW foods, we need to associate the photo by updating the food record
+        # For EXISTING foods, Garmin automatically associates uploaded photos
+        if is_new:
+            try:
+                logger.info(f"New food detected - associating photo {media_uuid} with food {food_id}")
+                
+                # Fetch the current food to get its full structure
+                foods_response = client.client.request(
+                    "GET",
+                    "connectapi",
+                    f"/nutrition-service/customFood?searchExpression=&start=0&limit=20&includeContent=true",
+                    api=True
+                )
+                foods_list = foods_response.get("customFoods", [])
+                
+                # Find the food we just uploaded the photo for
+                target_food = None
+                for food in foods_list:
+                    if food.get("foodMetaData", {}).get("foodId") == food_id:
+                        target_food = food
+                        break
+                
+                if not target_food:
+                    logger.error(f"ERROR: Could not find food {food_id} after photo upload")
+                    raise HTTPException(
+                        status_code=502,
+                        detail="Photo uploaded but food not found for association"
+                    )
+                
+                # Update the food with a PUT to trigger photo association
+                update_response = client.client.request(
+                    "PUT",
+                    "connectapi",
+                    "/nutrition-service/customFood",
+                    json=target_food,
+                    api=True
+                )
+                logger.info(f"Food update response after photo association: {json.dumps(update_response, indent=2, default=str)}")
+                
+            except Exception as e:
+                logger.error(f"ERROR: Failed to associate photo with new food: {e}", exc_info=True)
+                # Don't fail the request - photo is already uploaded
+                # Garmin's API might auto-associate it
+        else:
+            logger.info(f"Existing food - photo will auto-associate by Garmin")
+        
+        # Response is already a dict, return it
+        return resp
     except GarminConnectAuthenticationError as exc:
+        logger.error(f"ERROR: Auth error uploading photo for food {food_id}: {exc}")
         raise HTTPException(
             status_code=401,
             detail=f"Garmin auth error during photo upload: {exc}",
         )
+    except HTTPException:
+        raise  # Re-raise HTTPException as-is
     except Exception as exc:
+        logger.error(f"ERROR: Photo upload failed for food {food_id}: {exc}", exc_info=True)
         raise HTTPException(
             status_code=502,
             detail=(

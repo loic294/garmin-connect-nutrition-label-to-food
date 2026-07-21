@@ -93,18 +93,19 @@ class ImageEditor extends HTMLElement {
     bgBtn.className = "btn-secondary btn-full";
     bgBtn.disabled = this._isProcessing;
     bgBtn.style.marginTop = "var(--space-md)";
-    
+
     if (this._isProcessing) {
       // Show spinner inline with "Removing..." text
-      bgBtn.style.cssText = "display: flex; align-items: center; justify-content: center; gap: 8px;";
-      
+      bgBtn.style.cssText =
+        "display: flex; align-items: center; justify-content: center; gap: 8px;";
+
       const loader = document.createElement("loading-indicator");
       loader.message = "Removing…";
       bgBtn.appendChild(loader);
     } else {
       bgBtn.textContent = "Remove Background";
     }
-    
+
     bgBtn.addEventListener("click", () => this._removeBackground());
     this.appendChild(bgBtn);
 
@@ -202,6 +203,7 @@ class ImageEditor extends HTMLElement {
       if (this._isProcessing) {
         this._isProcessing = false;
         this._render();
+        this._draw(); // Redraw on the new canvas after re-rendering
       }
     };
     img.onerror = (err) => {
