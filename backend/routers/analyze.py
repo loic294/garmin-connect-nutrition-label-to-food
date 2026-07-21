@@ -5,14 +5,16 @@ and returns structured nutrition data ready for the Garmin custom-food API.
 
 import base64
 import json
+import logging
 import os
 import re
 
 import anthropic
-from fastapi import APIRouter, HTTPException, UploadFile, File, Request
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import FileResponse, Response
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-5")
 
@@ -26,9 +28,9 @@ Return ONLY a single valid JSON object â€” no markdown fences, no explanation â€
 {
   "foodName": "...",
   "brandName": "...",
-  "servingUnit": "SERVING",
-  "numberOfUnits": "1",
   "servingSizeDescription": "...",
+  "servingUnit": "...",
+  "numberOfUnits": "...",
   "calories": 0,
   "carbs": 0,
   "protein": 0,
@@ -54,9 +56,9 @@ Rules:
 - All numeric values must be numbers (not strings), in the unit printed on the label (g or mg).
 - cholesterol and sodium are in mg; all other nutrients in g unless the label says otherwise.
 - vitaminA, vitaminC, vitaminD, calcium, iron: use mg if the label shows mg; use the % Daily Value number if only % is shown.
-- servingUnit: keep "SERVING" unless the label clearly states grams ("GRAM") or ounces ("OUNCE").
-- numberOfUnits: the serving-size count as a string, e.g. "1", "0.5", "2".
-- servingSizeDescription: human-readable serving size from the label, e.g. "1 cup (240 mL)".
+- servingSizeDescription: Extract the exact serving size text from the label, e.g., "1 cup (240 mL)", "2 slices (50g)", "1 serving".
+- servingUnit: Extract the serving unit from the label. Use "CUP", "GRAM", "OUNCE", "ML", "TABLESPOON", "TEASPOON", "SERVING", etc. Match what the label shows.
+- numberOfUnits: Extract the serving size number as a string, e.g., "1", "0.5", "2", "1/2". This is the count that precedes the serving unit on the label.
 - foodName and brandName: read from the package text if visible; leave as empty string if not visible.
 
 Return ONLY the JSON object.\
@@ -71,7 +73,9 @@ def _extract_json(text: str) -> dict:
 
 
 @router.post("/analyze")
-async def analyze(request: Request, file: UploadFile = File(...)):
+async def analyze(request: Request, file: UploadFile = File(...), parsingContext: str = Form("")):
+    logger.info(f"Received parsing context: {parsingContext if parsingContext else '(empty)'}")
+    
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
@@ -89,6 +93,13 @@ async def analyze(request: Request, file: UploadFile = File(...)):
 
     client = anthropic.Anthropic(api_key=api_key)
 
+    # Build the prompt with parsing context if provided
+    nutrition_prompt = NUTRITION_PROMPT
+    if parsingContext:
+        nutrition_prompt += f"\n\nIMPORTANT - Parsing Context to apply to ALL extracted values:\n{parsingContext}\n\nAfter extracting all values from the label, apply the parsing context adjustments to the extracted values before returning the JSON."
+    
+    logger.info(f"Complete prompt being sent to Claude:\n{nutrition_prompt}")
+
     try:
         message = client.messages.create(
             model=ANTHROPIC_MODEL,
@@ -105,7 +116,7 @@ async def analyze(request: Request, file: UploadFile = File(...)):
                                 "data": b64,
                             },
                         },
-                        {"type": "text", "text": NUTRITION_PROMPT},
+                        {"type": "text", "text": nutrition_prompt},
                     ],
                 }
             ],
@@ -114,6 +125,7 @@ async def analyze(request: Request, file: UploadFile = File(...)):
         raise HTTPException(status_code=502, detail=f"Anthropic API error: {exc}")
 
     raw = message.content[0].text
+    logger.info(f"Claude raw response: {raw}")
 
     try:
         nutrition = _extract_json(raw)
@@ -122,6 +134,8 @@ async def analyze(request: Request, file: UploadFile = File(...)):
             status_code=502,
             detail=f"Claude returned non-JSON response: {raw[:200]}",
         )
+
+    logger.info(f"Parsed nutrition data: {json.dumps(nutrition, indent=2)}")
 
     return nutrition
 

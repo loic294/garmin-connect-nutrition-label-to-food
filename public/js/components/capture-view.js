@@ -3,6 +3,7 @@ class CaptureView extends HTMLElement {
   _analyzing = false;
   _selectedFile = null;
   _previewUrl = null;
+  _parsingContext = ""; // Context to help Claude understand the label
 
   connectedCallback() {
     this._render();
@@ -73,10 +74,55 @@ class CaptureView extends HTMLElement {
       inner.appendChild(placeholder);
     }
 
+    // Parsing context input (shown when file is selected)
+    if (this._selectedFile) {
+      const contextLabel = document.createElement("label");
+      contextLabel.style.cssText =
+        "display:block; margin-top:var(--space-md); margin-bottom:var(--space-xs); font-weight:var(--font-weight-bold); font-size:var(--font-size-sm);";
+      contextLabel.textContent = "Parsing context (optional)";
+      inner.appendChild(contextLabel);
+
+      const contextHint = document.createElement("p");
+      contextHint.style.cssText =
+        "margin:0 0 var(--space-xs); font-size:var(--font-size-sm); color:var(--color-text-muted);";
+      contextHint.textContent =
+        "E.g., 'multiply by 2.5 servings' or 'whole package' to help interpret the label";
+      inner.appendChild(contextHint);
+
+      const contextInput = document.createElement("input");
+      contextInput.type = "text";
+      contextInput.placeholder = "e.g., Whole package or per 2 cups";
+      contextInput.value = this._parsingContext;
+      contextInput.style.cssText =
+        "width:100%; padding:var(--space-sm); border:var(--border); border-radius:4px; font-size:1rem; margin-bottom:var(--space-md);";
+      contextInput.addEventListener("change", (e) => {
+        this._parsingContext = e.target.value;
+      });
+      inner.appendChild(contextInput);
+    }
+
     // Action buttons
     const actions = document.createElement("div");
     actions.style.cssText =
       "display:flex; flex-direction:column; gap:var(--space-sm); margin-top:var(--space-md);";
+
+    // Analyze button — only shown once a file is selected (appears first with yellow styling)
+    if (this._selectedFile) {
+      const analyzeBtn = document.createElement("button");
+      analyzeBtn.className = "btn-full";
+      analyzeBtn.style.backgroundColor = "#fbbf24";
+      analyzeBtn.style.color = "#000";
+      analyzeBtn.style.fontWeight = "bold";
+      analyzeBtn.textContent = "Analyze nutrition label";
+      analyzeBtn.addEventListener("click", () => this._analyze());
+      actions.appendChild(analyzeBtn);
+
+      // Separator
+      const separator = document.createElement("div");
+      separator.style.cssText =
+        "height:1px; background:var(--color-border); margin:var(--space-xs) 0;";
+      actions.appendChild(separator);
+    }
 
     // Take a photo button (camera)
     const takeBtn = document.createElement("button");
@@ -93,15 +139,6 @@ class CaptureView extends HTMLElement {
     chooseBtn.textContent = "Choose from library";
     chooseBtn.addEventListener("click", () => fileInput.click());
     actions.appendChild(chooseBtn);
-
-    // Analyze button — only shown once a file is selected
-    if (this._selectedFile) {
-      const analyzeBtn = document.createElement("button");
-      analyzeBtn.className = "btn-full btn-secondary";
-      analyzeBtn.textContent = "Analyze nutrition label";
-      analyzeBtn.addEventListener("click", () => this._analyze());
-      actions.appendChild(analyzeBtn);
-    }
 
     inner.appendChild(actions);
     this.appendChild(inner);
@@ -189,6 +226,9 @@ class CaptureView extends HTMLElement {
     try {
       const formData = new FormData();
       formData.append("file", this._selectedFile);
+      if (this._parsingContext) {
+        formData.append("parsingContext", this._parsingContext);
+      }
 
       const res = await fetch("/api/analyze", {
         method: "POST",

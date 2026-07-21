@@ -11,6 +11,8 @@ ever rejects the Bearer token for this specific endpoint, the error message
 returned here will make it clear what happened.
 """
 
+import json
+import logging
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from garminconnect import Garmin
 from garminconnect.exceptions import (
@@ -19,11 +21,37 @@ from garminconnect.exceptions import (
 )
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
+
 # Relative path used by the library's internal client.Client
 # (maps to https://connect.garmin.com/proxy/nutrition-service/customFood or similar)
 GARMIN_CUSTOM_FOOD_PATH = "/nutrition-service/customFood"
 
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def build_serving_description(number_of_units, serving_unit: str) -> str:
+    """Build a human-readable serving description from unit and number."""
+    if not number_of_units or not serving_unit:
+        return "per serving"
+    
+    unit_labels = {
+        "SERVING": "serving",
+        "GRAM": "g",
+        "OUNCE": "oz",
+        "CUP": "cup",
+        "ML": "mL",
+        "TABLESPOON": "tbsp",
+        "TEASPOON": "tsp",
+    }
+    
+    unit_label = unit_labels.get(serving_unit, serving_unit.lower())
+    return f"{number_of_units} {unit_label}"
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +164,10 @@ async def get_custom_foods(client: Garmin = Depends(get_garmin_client)):
                 "iron": nutrition.get("iron"),
                 "servingUnit": nutrition.get("servingUnit", "SERVING"),
                 "numberOfUnits": nutrition.get("numberOfUnits", 1),
+                "servingSizeDescription": build_serving_description(
+                    nutrition.get("numberOfUnits", 1),
+                    nutrition.get("servingUnit", "SERVING")
+                ),
                 "imageUrl": image_url,
                 # Full nutrition object for detail view
                 "nutrition": nutrition,
@@ -204,6 +236,10 @@ async def get_food_detail(
                     "iron": nutrition.get("iron"),
                     "servingUnit": nutrition.get("servingUnit", "SERVING"),
                     "numberOfUnits": nutrition.get("numberOfUnits", 1),
+                    "servingSizeDescription": build_serving_description(
+                        nutrition.get("numberOfUnits", 1),
+                        nutrition.get("servingUnit", "SERVING")
+                    ),
                     "imageUrl": image_url,
                     "nutrition": nutrition,
                 }
@@ -278,9 +314,44 @@ async def create_food(
         raise HTTPException(status_code=502, detail=f"Garmin request failed: {exc}")
 
     try:
-        return response.json()
-    except Exception:
+        response_data = response.json()
+        logger.info(f"Garmin create_food response: {json.dumps(response_data, indent=2, default=str)}")
+        
+        # After creating the food, fetch the foods list to get the newly created food's ID
+        # Garmin's create response may not always include the foodId, so we fetch the list
+        try:
+            foods_response = client.client.request(
+                "GET",
+                "connectapi",
+                "/nutrition-service/customFood?searchExpression=&start=0&limit=20&includeContent=true",
+                api=True
+            )
+            foods_data = foods_response.json()
+            foods_list = foods_data.get("customFoods", [])
+            
+            if foods_list:
+                # Get the first food (usually the most recently created)
+                newest_food = foods_list[0]
+                food_metadata = newest_food.get("foodMetaData", {})
+                food_id = food_metadata.get("foodId")
+                
+                if food_id:
+                    logger.info(f"Extracted newly created food ID: {food_id}")
+                    # Return the newly created food with all its details
+                    return {
+                        "foodMetaData": food_metadata,
+                        "foodId": food_id,  # Include foodId at top level for easy access
+                        "customFoodId": food_id,
+                        "nutritionContents": newest_food.get("nutritionContents", []),
+                        "foodImages": newest_food.get("foodImages", []),
+                    }
+        except Exception as e:
+            logger.warning(f"Failed to fetch newly created food ID: {e}")
+        
+        return response_data
+    except Exception as e:
         # Some Garmin endpoints return an empty 200/201 body
+        logger.warning(f"Failed to parse Garmin response as JSON: {e}")
         return {"status": "created"}
 
 

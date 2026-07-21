@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -8,6 +9,12 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from routers import auth, analyze, garmin
+
+# Configure logging to show application logs
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 
 TOKEN_DIR = Path("/root/.garminconnect")
 PUBLIC_DIR = Path(__file__).parent.parent / "public"

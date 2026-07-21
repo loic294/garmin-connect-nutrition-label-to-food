@@ -71,7 +71,8 @@ class FoodDetail extends HTMLElement {
 
     const nutriTitle = document.createElement("h3");
     nutriTitle.style.cssText = "margin:0 0 var(--space-md);";
-    nutriTitle.textContent = "Nutrition (per serving)";
+    const servingDesc = this.food.servingSizeDescription || "per serving";
+    nutriTitle.textContent = `Nutrition (${servingDesc})`;
     nutriSection.appendChild(nutriTitle);
 
     const nutrients = [
