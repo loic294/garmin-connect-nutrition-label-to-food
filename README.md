@@ -71,7 +71,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: backend/Dockerfile
+      dockerfile: Dockerfile
     restart: unless-stopped
     ports:
       - "${PORT:-8080}:8080"
