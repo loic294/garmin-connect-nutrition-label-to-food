@@ -11,40 +11,83 @@ class LoginView extends HTMLElement {
     this.className = "view";
     this.innerHTML = "";
 
-    const inner = document.createElement("div");
-    inner.className = "view-inner pt-8";
+    const hero = document.createElement("main");
+    hero.className = "hero min-h-full bg-base-200 px-4 py-10";
 
-    const heading = document.createElement("h1");
-    heading.className = "mb-2 text-3xl font-bold";
-    heading.textContent = "NutriScan";
-    inner.appendChild(heading);
+    const content = document.createElement("div");
+    content.className = "hero-content w-full max-w-md flex-col gap-6";
 
-    const sub = document.createElement("p");
-    sub.className = "mb-8 text-sm text-base-content/70";
-    sub.textContent =
-      this._phase === "mfa"
-        ? "Enter the verification code sent to your device."
-        : "Sign in with your Garmin Connect account.";
-    inner.appendChild(sub);
+    const brand = document.createElement("div");
+    brand.className = "text-center";
+    brand.innerHTML = `
+      <div class="avatar placeholder mb-4">
+        <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-content shadow-sm">
+          <span data-lucide="scan-line" class="h-8 w-8"></span>
+        </div>
+      </div>
+      <h1 class="text-3xl font-bold tracking-tight">NutriScan</h1>
+      <p class="mt-2 text-base text-base-content/60">
+        Nutrition labels, saved directly to Garmin Connect.
+      </p>
+    `;
+    content.appendChild(brand);
 
-    // Error banner
+    const card = document.createElement("section");
+    card.className = "card w-full border border-base-300 bg-base-100 shadow-xl";
+
+    const cardBody = document.createElement("div");
+    cardBody.className = "card-body gap-5 p-6 sm:p-8";
+
+    const heading = document.createElement("div");
+    heading.innerHTML = `
+      <h2 class="card-title text-xl">
+        ${this._phase === "mfa" ? "Verify your identity" : "Welcome back"}
+      </h2>
+      <p class="mt-1 text-sm leading-relaxed text-base-content/60">
+        ${
+          this._phase === "mfa"
+            ? "Enter the verification code Garmin sent to your device."
+            : "Use your Garmin Connect credentials to continue."
+        }
+      </p>
+    `;
+    cardBody.appendChild(heading);
+
     if (this._error) {
-      const err = document.createElement("div");
-      err.className = "error-banner";
-      err.textContent = this._error;
-      inner.appendChild(err);
+      const error = document.createElement("div");
+      error.className = "alert alert-error";
+      error.setAttribute("role", "alert");
+      const icon = document.createElement("span");
+      icon.dataset.lucide = "circle-alert";
+      icon.className = "h-5 w-5 shrink-0";
+      const message = document.createElement("span");
+      message.className = "text-sm";
+      message.textContent = this._error;
+      error.append(icon, message);
+      cardBody.appendChild(error);
     }
 
     if (this._phase === "loading") {
-      const spinner = document.createElement("loading-indicator");
-      spinner.message = "Signing in…";
-      spinner.style.flex = "0";
-      inner.appendChild(spinner);
-      this.appendChild(inner);
+      const loading = document.createElement("div");
+      loading.className = "flex flex-col items-center gap-4 py-8 text-center";
+      loading.innerHTML = `
+        <span class="loading loading-spinner loading-lg text-primary"></span>
+        <div>
+          <p class="font-semibold">Connecting to Garmin</p>
+          <p class="mt-1 text-sm text-base-content/60">This may take a moment.</p>
+        </div>
+      `;
+      cardBody.appendChild(loading);
+      card.appendChild(cardBody);
+      content.appendChild(card);
+      hero.appendChild(content);
+      this.appendChild(hero);
+      this._createIcons();
       return;
     }
 
     const form = document.createElement("form");
+    form.className = "space-y-4";
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       this._phase === "mfa" ? this._submitMFA(form) : this._submitLogin(form);
@@ -63,26 +106,47 @@ class LoginView extends HTMLElement {
 
     const btn = document.createElement("button");
     btn.type = "submit";
-    btn.className = "btn btn-primary mt-4 w-full";
-    btn.textContent = this._phase === "mfa" ? "Verify" : "Sign in";
+    btn.className = "btn btn-primary mt-2 w-full";
+    btn.innerHTML =
+      this._phase === "mfa"
+        ? '<span data-lucide="shield-check" class="h-4 w-4"></span> Verify code'
+        : '<span data-lucide="log-in" class="h-4 w-4"></span> Sign in';
     form.appendChild(btn);
 
-    inner.appendChild(form);
-    this.appendChild(inner);
+    cardBody.appendChild(form);
 
-    // Auto-focus first input
+    const privacy = document.createElement("div");
+    privacy.className = "divider my-0 text-xs text-base-content/40";
+    privacy.textContent = "SECURE CONNECTION";
+    cardBody.appendChild(privacy);
+
+    const reassurance = document.createElement("p");
+    reassurance.className =
+      "flex items-start justify-center gap-2 text-center text-xs leading-relaxed text-base-content/60";
+    reassurance.innerHTML = `
+      <span data-lucide="lock-keyhole" class="mt-0.5 h-3.5 w-3.5 shrink-0"></span>
+      <span>Your Garmin session is stored securely so you stay signed in. Your password is not saved.</span>
+    `;
+    cardBody.appendChild(reassurance);
+
+    card.appendChild(cardBody);
+    content.appendChild(card);
+    hero.appendChild(content);
+    this.appendChild(hero);
+    this._createIcons();
+
     const firstInput = form.querySelector("input");
     if (firstInput) firstInput.focus();
   }
 
   _field(name, label, type, placeholder) {
-    const wrapper = document.createElement("div");
-    wrapper.className = "field";
+    const fieldset = document.createElement("fieldset");
+    fieldset.className = "fieldset";
 
-    const lbl = document.createElement("label");
-    lbl.setAttribute("for", `login-${name}`);
-    lbl.textContent = label;
-    wrapper.appendChild(lbl);
+    const legend = document.createElement("legend");
+    legend.className = "fieldset-legend";
+    legend.textContent = label;
+    fieldset.appendChild(legend);
 
     const inp = document.createElement("input");
     inp.type = type;
@@ -91,9 +155,23 @@ class LoginView extends HTMLElement {
     inp.placeholder = placeholder;
     inp.autocomplete = name === "password" ? "current-password" : name;
     inp.required = true;
-    wrapper.appendChild(inp);
+    inp.className = "input input-bordered w-full";
+    if (name === "code") {
+      inp.inputMode = "numeric";
+      inp.autocomplete = "one-time-code";
+      inp.pattern = "[0-9]*";
+      inp.maxLength = 8;
+      inp.className += " text-center text-lg tracking-[0.35em]";
+    }
+    fieldset.appendChild(inp);
 
-    return wrapper;
+    return fieldset;
+  }
+
+  _createIcons() {
+    if (window.lucide && typeof window.lucide.createIcons === "function") {
+      window.lucide.createIcons();
+    }
   }
 
   async _submitLogin(form) {
