@@ -9,6 +9,7 @@ import "./components/loading-indicator.js";
 import "./components/review-view.js";
 import "./components/success-view.js";
 import "./components/image-editor.js";
+import "./components/recurring-food-view.js";
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

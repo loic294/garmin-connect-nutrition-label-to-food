@@ -25,13 +25,11 @@ class CaptureView extends HTMLElement {
     }
 
     const inner = document.createElement("div");
-    inner.className = "view-inner";
-    inner.style.paddingTop = "var(--space-lg)";
+    inner.className = "view-inner pt-4";
 
-    // Error banner
     if (this._error) {
       const err = document.createElement("div");
-      err.className = "error-banner";
+      err.className = "alert alert-error";
       err.textContent = this._error;
       inner.appendChild(err);
     }
@@ -58,75 +56,53 @@ class CaptureView extends HTMLElement {
     if (this._previewUrl) {
       const img = document.createElement("img");
       img.src = this._previewUrl;
-      img.className = "image-preview";
+      img.className = "image-preview mb-4";
       img.alt = "Selected nutrition label";
       inner.appendChild(img);
     } else {
       const placeholder = document.createElement("div");
-      placeholder.style.cssText = `
-        width:100%; height:220px; border:var(--border);
-        background:var(--color-surface);
-        display:flex; align-items:center; justify-content:center;
-        color:var(--color-text-muted); font-size:var(--font-size-sm);
-        margin-bottom:var(--space-md);
-      `;
+      placeholder.className = "mb-4 flex h-56 w-full items-center justify-center rounded-box border border-base-300 bg-base-200 text-sm text-base-content/70";
       placeholder.textContent = "No image selected";
       inner.appendChild(placeholder);
     }
 
-    // Parsing context input (shown when file is selected)
     if (this._selectedFile) {
       const contextLabel = document.createElement("label");
-      contextLabel.style.cssText =
-        "display:block; margin-top:var(--space-md); margin-bottom:var(--space-xs); font-weight:var(--font-weight-bold); font-size:var(--font-size-sm);";
+      contextLabel.className = "label mt-4 mb-1 px-0 pb-0";
       contextLabel.textContent = "Parsing context (optional)";
       inner.appendChild(contextLabel);
 
       const contextHint = document.createElement("p");
-      contextHint.style.cssText =
-        "margin:0 0 var(--space-xs); font-size:var(--font-size-sm); color:var(--color-text-muted);";
+      contextHint.className = "mb-2 text-xs text-base-content/70";
       contextHint.textContent =
         "E.g., 'multiply by 2.5 servings' or 'whole package' to help interpret the label";
       inner.appendChild(contextHint);
 
       const contextInput = document.createElement("input");
       contextInput.type = "text";
+      contextInput.className = "input input-bordered w-full mb-4";
       contextInput.placeholder = "e.g., Whole package or per 2 cups";
       contextInput.value = this._parsingContext;
-      contextInput.style.cssText =
-        "width:100%; padding:var(--space-sm); border:var(--border); border-radius:4px; font-size:1rem; margin-bottom:var(--space-md);";
       contextInput.addEventListener("change", (e) => {
         this._parsingContext = e.target.value;
       });
       inner.appendChild(contextInput);
     }
 
-    // Action buttons
     const actions = document.createElement("div");
-    actions.style.cssText =
-      "display:flex; flex-direction:column; gap:var(--space-sm); margin-top:var(--space-md);";
+    actions.className = "mt-4 flex flex-col gap-3";
 
-    // Analyze button — only shown once a file is selected (appears first with yellow styling)
     if (this._selectedFile) {
       const analyzeBtn = document.createElement("button");
-      analyzeBtn.className = "btn-full";
-      analyzeBtn.style.backgroundColor = "#fbbf24";
-      analyzeBtn.style.color = "#000";
-      analyzeBtn.style.fontWeight = "bold";
+      analyzeBtn.className = "btn btn-primary w-full";
       analyzeBtn.textContent = "Analyze nutrition label";
       analyzeBtn.addEventListener("click", () => this._analyze());
       actions.appendChild(analyzeBtn);
-
-      // Separator
-      const separator = document.createElement("div");
-      separator.style.cssText =
-        "height:1px; background:var(--color-border); margin:var(--space-xs) 0;";
-      actions.appendChild(separator);
     }
 
     // Take a photo button (camera)
     const takeBtn = document.createElement("button");
-    takeBtn.className = "btn-full";
+    takeBtn.className = "btn btn-primary w-full";
     takeBtn.textContent = this._selectedFile
       ? "Take another photo"
       : "Take a photo";
@@ -135,7 +111,7 @@ class CaptureView extends HTMLElement {
 
     // Choose from library button (file picker)
     const chooseBtn = document.createElement("button");
-    chooseBtn.className = "btn-full btn-secondary";
+    chooseBtn.className = "btn btn-outline w-full";
     chooseBtn.textContent = "Choose from library";
     chooseBtn.addEventListener("click", () => fileInput.click());
     actions.appendChild(chooseBtn);

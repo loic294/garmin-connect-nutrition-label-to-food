@@ -76,34 +76,20 @@ class SuccessView extends HTMLElement {
     }
 
     const inner = document.createElement("div");
-    inner.className = "view-inner";
-    inner.style.paddingTop = "var(--space-xl)";
+    inner.className = "view-inner pt-8";
 
-    // Shared header: checkmark + "Food saved!"
     const icon = document.createElement("div");
-    icon.style.cssText = [
-      "width:72px",
-      "height:72px",
-      "background:var(--color-primary)",
-      "border:var(--border)",
-      "display:flex",
-      "align-items:center",
-      "justify-content:center",
-      "font-size:2rem",
-      "font-weight:bold",
-      "margin:0 auto var(--space-lg)",
-    ].join(";");
+    icon.className = "mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-primary text-2xl font-bold text-primary-content";
     icon.textContent = "✓";
     inner.appendChild(icon);
 
     const title = document.createElement("h2");
-    title.style.cssText = "text-align:center; margin-bottom:var(--space-sm);";
+    title.className = "mb-2 text-center text-2xl font-bold";
     title.textContent = this.isUpdate ? "Update food" : "Food saved!";
     inner.appendChild(title);
 
     const desc = document.createElement("p");
-    desc.style.cssText =
-      "color:var(--color-text-muted); text-align:center; margin-bottom:var(--space-lg);";
+    desc.className = "mb-5 text-center text-sm text-base-content/70";
     desc.textContent = this.isUpdate
       ? "The food has been updated in your Garmin Connect custom foods."
       : "The food has been added to your Garmin Connect custom foods.";
@@ -117,8 +103,7 @@ class SuccessView extends HTMLElement {
     }
 
     const divider = document.createElement("div");
-    divider.style.cssText =
-      "border-top:var(--border-light); margin-bottom:var(--space-lg);";
+    divider.className = "divider mb-5";
     inner.appendChild(divider);
 
     if (this._phase === "prompt") this._renderPrompt(inner);
@@ -132,16 +117,15 @@ class SuccessView extends HTMLElement {
 
   _renderPrompt(inner) {
     const q = document.createElement("p");
-    q.style.cssText =
-      "font-weight:var(--font-weight-bold); text-align:center; margin-bottom:var(--space-md);";
+    q.className = "mb-4 text-center font-semibold";
     q.textContent = "Add a product photo?";
     inner.appendChild(q);
 
     const actions = document.createElement("div");
-    actions.style.cssText = "display:flex; gap:var(--space-sm);";
+    actions.className = "flex gap-3";
 
     const yes = document.createElement("button");
-    yes.style.flex = "1";
+    yes.className = "btn btn-primary flex-1";
     yes.textContent = "Yes";
     yes.addEventListener("click", () => {
       this._phase = "pick";
@@ -150,8 +134,7 @@ class SuccessView extends HTMLElement {
     actions.appendChild(yes);
 
     const skip = document.createElement("button");
-    skip.className = "btn-secondary";
-    skip.style.flex = "1";
+    skip.className = "btn btn-outline flex-1";
     skip.textContent = "Skip";
     skip.addEventListener("click", () => {
       this._phase = "done";
@@ -186,22 +169,17 @@ class SuccessView extends HTMLElement {
     // Option A: reuse the nutrition label photo
     if (this.imageUrl) {
       const hint = document.createElement("p");
-      hint.style.cssText =
-        "font-size:var(--font-size-sm); color:var(--color-text-muted);" +
-        "margin-bottom:var(--space-sm); text-align:center;";
+      hint.className = "mb-2 text-center text-sm text-base-content/70";
       hint.textContent = "Use and edit the nutrition label photo:";
       inner.appendChild(hint);
 
       const thumb = document.createElement("img");
       thumb.src = this.imageUrl;
-      thumb.className = "image-preview";
-      thumb.style.maxHeight = "140px";
-      thumb.style.marginBottom = "var(--space-sm)";
+      thumb.className = "image-preview mb-3 max-h-36";
       inner.appendChild(thumb);
 
       const useLabelBtn = document.createElement("button");
-      useLabelBtn.className = "btn-full";
-      useLabelBtn.style.marginBottom = "var(--space-md)";
+      useLabelBtn.className = "btn btn-primary mb-4 w-full";
       useLabelBtn.textContent = "Edit & use this photo";
       useLabelBtn.addEventListener("click", () => {
         // Prefer using imageFile for reliability; fall back to imageUrl
@@ -217,26 +195,22 @@ class SuccessView extends HTMLElement {
       inner.appendChild(useLabelBtn);
 
       const orDivider = document.createElement("p");
-      orDivider.style.cssText =
-        "text-align:center; font-size:var(--font-size-sm);" +
-        "color:var(--color-text-muted); margin-bottom:var(--space-sm);";
+      orDivider.className = "mb-2 text-center text-sm text-base-content/70";
       orDivider.textContent = "— or —";
       inner.appendChild(orDivider);
     }
 
-    // Option B: take a new photo or choose from library (split into two buttons)
     const photoActions = document.createElement("div");
-    photoActions.style.cssText =
-      "display:flex; flex-direction:column; gap:var(--space-sm); margin-bottom:var(--space-sm);";
+    photoActions.className = "mb-3 flex flex-col gap-3";
 
     const takeBtn = document.createElement("button");
-    takeBtn.className = "btn-secondary btn-full";
+    takeBtn.className = "btn btn-outline w-full";
     takeBtn.textContent = "Take a new photo";
     takeBtn.addEventListener("click", () => cameraInput.click());
     photoActions.appendChild(takeBtn);
 
     const chooseBtn = document.createElement("button");
-    chooseBtn.className = "btn-secondary btn-full";
+    chooseBtn.className = "btn btn-outline w-full";
     chooseBtn.textContent = "Choose from library";
     chooseBtn.addEventListener("click", () => fileInput.click());
     photoActions.appendChild(chooseBtn);
@@ -244,7 +218,7 @@ class SuccessView extends HTMLElement {
     inner.appendChild(photoActions);
 
     const skipBtn = document.createElement("button");
-    skipBtn.className = "btn-secondary btn-full";
+    skipBtn.className = "btn btn-outline w-full";
     skipBtn.textContent = "Skip";
     skipBtn.addEventListener("click", () => {
       this._phase = "done";
@@ -267,11 +241,10 @@ class SuccessView extends HTMLElement {
     this.innerHTML = "";
 
     const inner = document.createElement("div");
-    inner.className = "view-inner";
-    inner.style.paddingTop = "var(--space-md)";
+    inner.className = "view-inner pt-4";
 
     const heading = document.createElement("h3");
-    heading.style.cssText = "margin-bottom:var(--space-md); text-align:center;";
+    heading.className = "mb-4 text-center text-xl font-semibold";
     heading.textContent = "Crop & adjust";
     inner.appendChild(heading);
 
@@ -312,7 +285,7 @@ class SuccessView extends HTMLElement {
 
   _renderDone(inner) {
     const btn = document.createElement("button");
-    btn.className = "btn-full";
+    btn.className = "btn btn-primary w-full";
     btn.textContent = "Add another food";
     btn.addEventListener("click", () =>
       this.dispatchEvent(new CustomEvent("add-another", { bubbles: true })),

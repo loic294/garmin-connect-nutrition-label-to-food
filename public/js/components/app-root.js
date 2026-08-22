@@ -6,6 +6,7 @@
  *   /login                          — login page
  *   /foods, /                       — foods list
  *   /foods/{foodId}                 — food detail view
+ *   /recurring-food                 — recurring food schedule
  *   /capture                        — photo capture
  *   /review                         — review nutrition data
  *   /success                        — photo upload/edit complete
@@ -24,7 +25,7 @@
 class AppRoot extends HTMLElement {
   constructor() {
     super();
-    /** @type {'boot'|'login'|'foods'|'food-detail'|'capture'|'review'|'success'} */
+    /** @type {'boot'|'login'|'foods'|'food-detail'|'recurring-food'|'capture'|'review'|'success'} */
     this._view = "boot";
     this._imageUrl = null;
     this._imageFile = null; // Store original File for photo upload
@@ -68,6 +69,8 @@ class AppRoot extends HTMLElement {
       } catch (err) {
         console.error("[AppRoot] Failed to fetch food:", err);
       }
+    } else if (path === "/recurring-food") {
+      this._view = "recurring-food";
     } else if (path === "/capture") {
       this._view = "capture";
     } else if (path === "/review") {
@@ -90,6 +93,8 @@ class AppRoot extends HTMLElement {
         return "/foods";
       case "food-detail":
         return `/foods/${extra.foodId || ""}`;
+      case "recurring-food":
+        return "/recurring-food";
       case "capture":
         return "/capture";
       case "review":
@@ -115,7 +120,7 @@ class AppRoot extends HTMLElement {
   }
 
   /**
-   * @param {'login'|'foods'|'food-detail'|'capture'|'review'|'success'} view
+   * @param {'login'|'foods'|'food-detail'|'recurring-food'|'capture'|'review'|'success'} view
    * @param {object} [extra]
    */
   _navigate(view, extra = {}) {
@@ -149,42 +154,82 @@ class AppRoot extends HTMLElement {
   _render() {
     this.innerHTML = "";
 
-    // Header (hidden during boot / login)
     if (this._view !== "boot" && this._view !== "login") {
       this.appendChild(this._buildHeader());
+      this.appendChild(this._buildSubnav());
     }
 
     const viewEl = this._buildView();
     if (viewEl) this.appendChild(viewEl);
+
+    this._initLucideIcons();
+  }
+
+  _initLucideIcons() {
+    if (window.lucide && typeof window.lucide.createIcons === "function") {
+      window.lucide.createIcons({
+        attrs: {
+          class: "h-4 w-4 stroke-current",
+        },
+      });
+    }
   }
 
   _buildHeader() {
     const header = document.createElement("header");
-    header.className = "app-header";
+    header.className = "navbar sticky top-0 z-20 border-b border-base-300 bg-base-100/90 backdrop-blur-sm";
+
+    const start = document.createElement("div");
+    start.className = "navbar-start";
 
     const titleLink = document.createElement("a");
     titleLink.href = "/foods";
-    titleLink.style.cursor = "pointer";
-    titleLink.style.textDecoration = "none";
-    titleLink.style.color = "inherit";
+    titleLink.className = "btn btn-ghost px-3 text-lg font-semibold normal-case";
     titleLink.addEventListener("click", (e) => {
       e.preventDefault();
       this._navigate("foods");
     });
+    titleLink.textContent = "NutriScan";
+    start.appendChild(titleLink);
+    header.appendChild(start);
 
-    const title = document.createElement("h1");
-    title.textContent = "NutriScan";
-    title.style.margin = "0";
-    titleLink.appendChild(title);
-    header.appendChild(titleLink);
+    const end = document.createElement("div");
+    end.className = "navbar-end";
 
     const logoutBtn = document.createElement("button");
-    logoutBtn.className = "btn-secondary btn-sm";
-    logoutBtn.textContent = "Log out";
+    logoutBtn.className = "btn btn-ghost btn-sm";
+    logoutBtn.innerHTML = '<span data-lucide="log-out" class="h-4 w-4"></span><span class="hidden sm:inline">Log out</span>';
     logoutBtn.addEventListener("click", () => this._logout());
-    header.appendChild(logoutBtn);
+    end.appendChild(logoutBtn);
+    header.appendChild(end);
 
     return header;
+  }
+
+  _buildSubnav() {
+    const subnav = document.createElement("div");
+    subnav.className = "border-b border-base-300 bg-base-100/70 backdrop-blur-sm";
+
+    const tabs = document.createElement("div");
+    tabs.className = "mx-auto flex w-full max-w-[42rem] gap-2 px-4 py-2";
+
+    const items = [
+      { label: "Foods", view: "foods" },
+      { label: "Recurring", view: "recurring-food" },
+    ];
+
+    items.forEach(({ label, view }) => {
+      const tab = document.createElement("button");
+      tab.type = "button";
+      const isActive = this._view === view || (this._view === "food-detail" && view === "foods");
+      tab.className = `btn btn-sm ${isActive ? "btn-primary" : "btn-ghost"}`;
+      tab.textContent = label;
+      tab.addEventListener("click", () => this._navigate(view));
+      tabs.appendChild(tab);
+    });
+
+    subnav.appendChild(tabs);
+    return subnav;
   }
 
   async _logout() {
@@ -245,6 +290,12 @@ class AppRoot extends HTMLElement {
           console.log("[AppRoot] edit-food from detail → navigate to capture");
           this._navigate("capture");
         });
+        return el;
+      }
+
+      case "recurring-food": {
+        const el = document.createElement("recurring-food-view");
+        el.addEventListener("cancel", () => this._navigate("foods"));
         return el;
       }
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = "nutriscan-v1";
+const CACHE_NAME = "nutriscan-v2";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
@@ -15,6 +15,7 @@ const SHELL_ASSETS = [
   "/js/components/image-editor.js",
   "/js/components/review-view.js",
   "/js/components/success-view.js",
+  "/js/components/recurring-food-view.js",
   "/icons/icon.svg",
 ];
 

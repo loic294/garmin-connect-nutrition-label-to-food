@@ -34,6 +34,16 @@ This app uses [python-garminconnect](https://github.com/cyberjunky/python-garmin
 
 Your Garmin credentials are never stored or transmitted through this application.
 
+## Local debug run
+
+For quick front-end debugging without Docker, run:
+
+```bash
+npm run debug
+```
+
+Then open http://localhost:4173 in the browser.
+
 ## Running with Docker Compose
 
 ### Prerequisites

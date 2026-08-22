@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -8,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from routers import auth, analyze, garmin
+from routers import analyze, auth, garmin, recurring
 
 # Configure logging to show application logs
 logging.basicConfig(
@@ -16,7 +17,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
-TOKEN_DIR = Path("/root/.garminconnect")
+TOKEN_DIR = Path(os.getenv("GARMIN_TOKEN_DIR", str(Path.home() / ".garminconnect")))
 PUBLIC_DIR = Path(__file__).parent.parent / "public"
 
 
@@ -45,7 +46,15 @@ async def lifespan(app: FastAPI):
                 # Tokens stale or absent — user must re-login via the PWA
                 pass
 
-    yield
+    scheduler_task = asyncio.create_task(recurring.scheduler_loop(app))
+    try:
+        yield
+    finally:
+        scheduler_task.cancel()
+        try:
+            await scheduler_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(title="Nutrition Label → Garmin", lifespan=lifespan)
@@ -68,6 +77,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(analyze.router, prefix="/api", tags=["analyze"])
 app.include_router(garmin.router, prefix="/api/garmin", tags=["garmin"])
+app.include_router(recurring.router, prefix="/api/recurring", tags=["recurring"])
 
 
 @app.get("/api/health")

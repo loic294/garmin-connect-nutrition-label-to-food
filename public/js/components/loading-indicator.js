@@ -8,13 +8,9 @@ class LoadingIndicator extends HTMLElement {
   connectedCallback() {
     this.className = "view";
     this.innerHTML = `
-      <div style="
-        display:flex; flex-direction:column; align-items:center;
-        justify-content:center; flex:1; gap:var(--space-md);
-        padding:var(--space-xl);
-      ">
-        <div class="spinner"></div>
-        <p class="loading-message" style="color:var(--color-text-muted)">
+      <div class="flex flex-1 flex-col items-center justify-center gap-3 p-8">
+        <span class="loading loading-spinner loading-lg"></span>
+        <p class="loading-message text-sm text-base-content/70">
           ${this._message || "Loading…"}
         </p>
       </div>

@@ -72,10 +72,8 @@ class ReviewView extends HTMLElement {
     if (this.imageUrl) {
       const img = document.createElement("img");
       img.src = this.imageUrl;
-      img.className = "image-preview";
+      img.className = "image-preview mb-4 max-h-40";
       img.alt = "Scanned nutrition label";
-      img.style.maxHeight = "160px";
-      img.style.marginBottom = "var(--space-md)";
       inner.appendChild(img);
     }
 
@@ -107,8 +105,7 @@ class ReviewView extends HTMLElement {
 
     // Serving
     const servingRow = document.createElement("div");
-    servingRow.style.cssText =
-      "display:grid; grid-template-columns:1fr 1fr; gap:var(--space-sm);";
+    servingRow.className = "grid grid-cols-2 gap-3";
 
     servingRow.appendChild(
       this._numberField(
@@ -142,8 +139,7 @@ class ReviewView extends HTMLElement {
 
     if (this.nutrition?.servingSizeDescription) {
       const desc = document.createElement("p");
-      desc.style.cssText =
-        "font-size:var(--font-size-sm); color:var(--color-text-muted); margin-bottom:var(--space-md);";
+      desc.className = "mb-4 text-sm text-base-content/70";
       desc.textContent = `Label says: ${this.nutrition.servingSizeDescription}`;
       form.appendChild(desc);
     }
@@ -204,13 +200,11 @@ class ReviewView extends HTMLElement {
 
     // ── Actions ───────────────────────────────────────────────────
     const actions = document.createElement("div");
-    actions.style.cssText =
-      "display:flex; gap:var(--space-sm); margin-top:var(--space-xl); margin-bottom:var(--space-xl);";
+    actions.className = "my-8 flex gap-3";
 
     const retakeBtn = document.createElement("button");
     retakeBtn.type = "button";
-    retakeBtn.className = "btn-secondary";
-    retakeBtn.style.flex = "1";
+    retakeBtn.className = "btn btn-outline flex-1";
     retakeBtn.textContent = "Retake";
     retakeBtn.addEventListener("click", () =>
       this.dispatchEvent(new CustomEvent("retake", { bubbles: true })),
@@ -219,7 +213,7 @@ class ReviewView extends HTMLElement {
 
     const saveBtn = document.createElement("button");
     saveBtn.type = "submit";
-    saveBtn.style.flex = "2";
+    saveBtn.className = "btn btn-primary flex-[2]";
     saveBtn.textContent = "Save to Garmin";
     actions.appendChild(saveBtn);
 

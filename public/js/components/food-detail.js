@@ -32,45 +32,38 @@ class FoodDetail extends HTMLElement {
 
     // Back button
     const backBtn = document.createElement("button");
-    backBtn.className = "btn-secondary btn-sm";
-    backBtn.style.marginBottom = "var(--space-lg)";
+    backBtn.className = "btn btn-outline btn-sm mb-5";
     backBtn.textContent = "← Back";
     backBtn.addEventListener("click", () => {
       this.dispatchEvent(new CustomEvent("back", { bubbles: true }));
     });
     inner.appendChild(backBtn);
 
-    // Image
     if (this.food.imageUrl) {
       const img = document.createElement("img");
       img.src = this.food.imageUrl;
-      img.style.cssText =
-        "width:100%; max-width:300px; max-height:300px; border-radius:8px; object-fit:cover; margin-bottom:var(--space-lg); display:block; margin-left:auto; margin-right:auto;";
+      img.className = "mx-auto mb-5 block max-h-[300px] w-full max-w-[300px] rounded-box object-cover";
       img.alt = this.food.foodName;
       inner.appendChild(img);
     }
 
-    // Name and brand
     const name = document.createElement("h2");
-    name.style.cssText = "margin:0 0 var(--space-xs); text-align:center;";
+    name.className = "mb-1 text-center text-2xl font-bold";
     name.textContent = this.food.foodName || "Unnamed";
     inner.appendChild(name);
 
     if (this.food.brandName) {
       const brand = document.createElement("p");
-      brand.style.cssText =
-        "margin:0 0 var(--space-lg); text-align:center; color:var(--color-text-muted); font-size:var(--font-size-sm);";
+      brand.className = "mb-5 text-center text-sm text-base-content/70";
       brand.textContent = this.food.brandName;
       inner.appendChild(brand);
     }
 
-    // Nutrition info
     const nutriSection = document.createElement("div");
-    nutriSection.style.cssText =
-      "background:var(--color-surface-alt); padding:var(--space-md); border-radius:8px; margin-bottom:var(--space-lg);";
+    nutriSection.className = "card mb-5 bg-base-200/80 p-4";
 
     const nutriTitle = document.createElement("h3");
-    nutriTitle.style.cssText = "margin:0 0 var(--space-md);";
+    nutriTitle.className = "mb-3 text-lg font-semibold";
     const servingDesc = this.food.servingSizeDescription || "per serving";
     nutriTitle.textContent = `Nutrition (${servingDesc})`;
     nutriSection.appendChild(nutriTitle);
@@ -108,15 +101,14 @@ class FoodDetail extends HTMLElement {
     for (const { label, value, unit } of nutrients) {
       if (value != null && value !== "") {
         const row = document.createElement("div");
-        row.style.cssText =
-          "display:flex; justify-content:space-between; margin-bottom:var(--space-sm); font-size:var(--font-size-sm);";
+        row.className = "mb-2 flex items-center justify-between gap-3 text-sm";
 
         const labelEl = document.createElement("span");
         labelEl.textContent = label;
-        labelEl.style.color = "var(--color-text-muted)";
+        labelEl.className = "text-base-content/70";
 
         const valueEl = document.createElement("span");
-        valueEl.style.fontWeight = "var(--font-weight-bold)";
+        valueEl.className = "font-semibold";
         valueEl.textContent = `${Math.round(value * 10) / 10}${unit ? " " + unit : ""}`;
 
         row.appendChild(labelEl);
@@ -127,10 +119,8 @@ class FoodDetail extends HTMLElement {
 
     inner.appendChild(nutriSection);
 
-    // Edit photo button
     const editPhotoBtn = document.createElement("button");
-    editPhotoBtn.className = "btn-secondary btn-full";
-    editPhotoBtn.style.marginBottom = "var(--space-sm)";
+    editPhotoBtn.className = "btn btn-outline mb-2 w-full";
     editPhotoBtn.textContent = "Add/Change Photo";
     editPhotoBtn.addEventListener("click", () => {
       this.dispatchEvent(
@@ -144,7 +134,7 @@ class FoodDetail extends HTMLElement {
 
     // Edit button
     const editBtn = document.createElement("button");
-    editBtn.className = "btn-full";
+    editBtn.className = "btn btn-primary w-full";
     editBtn.textContent = "Edit Food";
     editBtn.addEventListener("click", () => {
       this.dispatchEvent(

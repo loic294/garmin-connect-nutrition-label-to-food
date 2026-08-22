@@ -13,12 +13,15 @@ returned here will make it clear what happened.
 
 import json
 import logging
+from typing import Optional
+
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from garminconnect import Garmin
-from garminconnect.exceptions import (
+from garminconnect import (
+    Garmin,
     GarminConnectAuthenticationError,
     GarminConnectConnectionError,
 )
+from garth.exc import GarthHTTPError
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -60,7 +63,7 @@ def build_serving_description(number_of_units, serving_unit: str) -> str:
 
 
 def get_garmin_client(request: Request) -> Garmin:
-    client: Garmin | None = request.app.state.garmin_client
+    client: Optional[Garmin] = request.app.state.garmin_client
     if client is None:
         raise HTTPException(
             status_code=401, detail="Not authenticated with Garmin Connect"
@@ -80,21 +83,21 @@ class NutritionContents(BaseModel):
     carbs: float = 0
     protein: float = 0
     fat: float = 0
-    fiber: float | None = None
-    sugar: float | None = None
-    addedSugars: float | None = None
-    saturatedFat: float | None = None
-    monounsaturatedFat: float | None = None
-    polyunsaturatedFat: float | None = None
-    transFat: float | None = None
-    cholesterol: float | None = None
-    sodium: float | None = None
-    potassium: float | None = None
-    vitaminA: float | None = None
-    vitaminC: float | None = None
-    vitaminD: float | None = None
-    calcium: float | None = None
-    iron: float | None = None
+    fiber: Optional[float] = None
+    sugar: Optional[float] = None
+    addedSugars: Optional[float] = None
+    saturatedFat: Optional[float] = None
+    monounsaturatedFat: Optional[float] = None
+    polyunsaturatedFat: Optional[float] = None
+    transFat: Optional[float] = None
+    cholesterol: Optional[float] = None
+    sodium: Optional[float] = None
+    potassium: Optional[float] = None
+    vitaminA: Optional[float] = None
+    vitaminC: Optional[float] = None
+    vitaminD: Optional[float] = None
+    calcium: Optional[float] = None
+    iron: Optional[float] = None
 
 
 class CreateFoodRequest(BaseModel):
@@ -108,6 +111,63 @@ class CreateFoodRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+@router.get("/meals")
+async def get_meals(client: Garmin = Depends(get_garmin_client)):
+    """Fetch all reusable Garmin custom meals, including their foods."""
+    page_size = 20
+    start = 0
+    custom_meals = []
+
+    try:
+        while True:
+            response = client.garth.request(
+                "GET",
+                "connectapi",
+                f"/nutrition-service/customMeal?start={start}&limit={page_size}",
+                api=True,
+            )
+            payload = response.json()
+            page = payload.get("customMeals", [])
+
+            if not isinstance(page, list):
+                raise ValueError("customMeals must be a list")
+
+            custom_meals.extend(meal for meal in page if isinstance(meal, dict))
+
+            if not payload.get("hasMore"):
+                break
+            if not page:
+                raise ValueError("Garmin returned an empty page with hasMore=true")
+
+            start += len(page)
+
+        return [
+            {
+                "id": meal.get("customMealId"),
+                "customMealId": meal.get("customMealId"),
+                "name": meal.get("name") or "Unnamed meal",
+                "type": meal.get("type"),
+                "status": meal.get("status"),
+                "isFavorite": meal.get("isFavorite", False),
+                "foodCount": len(meal.get("foods") or []),
+                "foods": meal.get("foods") or [],
+                "nutrition": meal.get("contentSummary") or {},
+            }
+            for meal in custom_meals
+            if meal.get("customMealId") is not None
+        ]
+    except GarminConnectAuthenticationError as exc:
+        raise HTTPException(status_code=401, detail=f"Auth failed: {exc}")
+    except (GarminConnectConnectionError, GarthHTTPError) as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch meals: {exc}")
+    except (TypeError, ValueError) as exc:
+        logger.exception("Garmin returned an invalid meals payload")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Garmin returned an invalid meals payload: {exc}",
+        )
+
+
 @router.get("/foods")
 async def get_custom_foods(client: Garmin = Depends(get_garmin_client)):
     """
@@ -115,12 +175,13 @@ async def get_custom_foods(client: Garmin = Depends(get_garmin_client)):
     Returns a list with nutrition details and image URL.
     """
     try:
-        # Use the authenticated client to call the Garmin API directly via request()
-        response = client.client.request(
+        # Use the authenticated client to call the Garmin API directly via the
+        # garth client, which is the API exposed by the installed library version.
+        response = client.garth.request(
             "GET",
             "connectapi",
             "/nutrition-service/customFood?searchExpression=&start=0&limit=20&includeContent=true",
-            api=True
+            api=True,
         )
         foods_data = response.json()
         
@@ -190,11 +251,11 @@ async def get_food_detail(
     """
     try:
         # Fetch all foods and find the one with matching foodId
-        response = client.client.request(
+        response = client.garth.request(
             "GET",
             "connectapi",
             "/nutrition-service/customFood?searchExpression=&start=0&limit=20&includeContent=true",
-            api=True
+            api=True,
         )
         foods_data = response.json()
         foods_list = foods_data.get("customFoods", [])
@@ -298,12 +359,12 @@ async def create_food(
     }
 
     try:
-        response = client.client.request(
+        response = client.garth.request(
             "PUT",
             "connectapi",
             GARMIN_CUSTOM_FOOD_PATH,
             json=payload,
-            api=True
+            api=True,
         )
     except GarminConnectAuthenticationError as exc:
         raise HTTPException(
@@ -352,7 +413,7 @@ async def create_food(
 @router.post("/food/photo")  # fallback when food_id is unknown
 async def upload_food_photo(
     file: UploadFile = File(...),
-    food_id: str | None = None,
+    food_id: Optional[str] = None,
     is_new: bool = False,
     client: Garmin = Depends(get_garmin_client),
 ):
@@ -375,12 +436,12 @@ async def upload_food_photo(
 
     try:
         # client.client.post() returns a dict directly
-        resp = client.client.post(
+        resp = client.garth.post(
             "connectapi",
             f"/nutrition-service/food/upload-image/NUTRITION_CUSTOM_FOOD/{food_id}",
             files={"file": (filename, image_bytes, media_type)},
             api=True,
-        )
+        ).json()
         logger.info(f"Photo upload response for food {food_id}: {json.dumps(resp, indent=2, default=str)}")
         
         # Verify response indicates success
@@ -407,12 +468,12 @@ async def upload_food_photo(
                 logger.info(f"New food detected - associating photo {media_uuid} with food {food_id}")
                 
                 # Fetch the current food to get its full structure
-                foods_response = client.client.request(
+                foods_response = client.garth.request(
                     "GET",
                     "connectapi",
                     f"/nutrition-service/customFood?searchExpression=&start=0&limit=20&includeContent=true",
-                    api=True
-                )
+                    api=True,
+                ).json()
                 foods_list = foods_response.get("customFoods", [])
                 
                 # Find the food we just uploaded the photo for
@@ -430,13 +491,13 @@ async def upload_food_photo(
                     )
                 
                 # Update the food with a PUT to trigger photo association
-                update_response = client.client.request(
+                update_response = client.garth.request(
                     "PUT",
                     "connectapi",
                     "/nutrition-service/customFood",
                     json=target_food,
-                    api=True
-                )
+                    api=True,
+                ).json()
                 logger.info(f"Food update response after photo association: {json.dumps(update_response, indent=2, default=str)}")
                 
             except Exception as e:

@@ -12,18 +12,15 @@ class LoginView extends HTMLElement {
     this.innerHTML = "";
 
     const inner = document.createElement("div");
-    inner.className = "view-inner";
-    inner.style.paddingTop = "var(--space-xl)";
+    inner.className = "view-inner pt-8";
 
-    // Logo / heading
     const heading = document.createElement("h1");
-    heading.style.marginBottom = "var(--space-xs)";
+    heading.className = "mb-2 text-3xl font-bold";
     heading.textContent = "NutriScan";
     inner.appendChild(heading);
 
     const sub = document.createElement("p");
-    sub.style.color = "var(--color-text-muted)";
-    sub.style.marginBottom = "var(--space-xl)";
+    sub.className = "mb-8 text-sm text-base-content/70";
     sub.textContent =
       this._phase === "mfa"
         ? "Enter the verification code sent to your device."
@@ -66,8 +63,7 @@ class LoginView extends HTMLElement {
 
     const btn = document.createElement("button");
     btn.type = "submit";
-    btn.className = "btn-full";
-    btn.style.marginTop = "var(--space-md)";
+    btn.className = "btn btn-primary mt-4 w-full";
     btn.textContent = this._phase === "mfa" ? "Verify" : "Sign in";
     form.appendChild(btn);
 

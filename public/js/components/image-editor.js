@@ -48,28 +48,20 @@ class ImageEditor extends HTMLElement {
 
     // Canvas
     const canvas = document.createElement("canvas");
-    canvas.className = "crop-canvas";
+    canvas.className = "crop-canvas mx-auto block rounded-box border border-base-300 bg-base-200";
     canvas.width = this._size;
     canvas.height = this._size;
-    canvas.style.cssText = [
-      `display:block`,
-      `width:${this._size}px`,
-      `height:${this._size}px`,
-      `border:var(--border)`,
-      `cursor:grab`,
-      `touch-action:none`,
-      `background:var(--color-surface)`,
-      `margin:0 auto`,
-    ].join(";");
+    canvas.style.width = `${this._size}px`;
+    canvas.style.height = `${this._size}px`;
+    canvas.style.cursor = "grab";
+    canvas.style.touchAction = "none";
 
     this._attachCanvasEvents(canvas);
     this.appendChild(canvas);
 
     // Hint
     const hint = document.createElement("p");
-    hint.style.cssText =
-      "font-size:var(--font-size-sm); color:var(--color-text-muted);" +
-      "text-align:center; margin:var(--space-xs) 0 var(--space-md);";
+    hint.className = "my-2 text-center text-xs text-base-content/70";
     hint.textContent = "Drag to reposition · Pinch or scroll to zoom";
     this.appendChild(hint);
 
@@ -90,15 +82,11 @@ class ImageEditor extends HTMLElement {
     // Background removal button (with inline spinner)
     const bgBtn = document.createElement("button");
     bgBtn.type = "button";
-    bgBtn.className = "btn-secondary btn-full";
+    bgBtn.className = "btn btn-outline mt-4 w-full";
     bgBtn.disabled = this._isProcessing;
-    bgBtn.style.marginTop = "var(--space-md)";
 
     if (this._isProcessing) {
-      // Show spinner inline with "Removing..." text
-      bgBtn.style.cssText =
-        "display: flex; align-items: center; justify-content: center; gap: 8px;";
-
+      bgBtn.classList.add("gap-2");
       const loader = document.createElement("loading-indicator");
       loader.message = "Removing…";
       bgBtn.appendChild(loader);
@@ -111,12 +99,10 @@ class ImageEditor extends HTMLElement {
 
     // Action buttons
     const actions = document.createElement("div");
-    actions.style.cssText =
-      "display:flex; gap:var(--space-sm); margin-top:var(--space-lg);";
+    actions.className = "mt-6 flex gap-3";
 
     const back = document.createElement("button");
-    back.className = "btn-secondary";
-    back.style.flex = "1";
+    back.className = "btn btn-outline flex-1";
     back.textContent = "Back";
     back.addEventListener("click", () =>
       this.dispatchEvent(new CustomEvent("edit-cancel", { bubbles: true })),
@@ -124,7 +110,7 @@ class ImageEditor extends HTMLElement {
     actions.appendChild(back);
 
     const apply = document.createElement("button");
-    apply.style.flex = "2";
+    apply.className = "btn btn-primary flex-[2]";
     apply.textContent = "Use this photo";
     apply.addEventListener("click", () => this._apply());
     actions.appendChild(apply);
@@ -137,17 +123,14 @@ class ImageEditor extends HTMLElement {
     wrapper.className = "field";
 
     const row = document.createElement("div");
-    row.style.cssText =
-      "display:flex; justify-content:space-between; margin-bottom:var(--space-xs);";
+    row.className = "mb-1 flex items-center justify-between gap-3";
 
     const lbl = document.createElement("label");
     lbl.textContent = label;
     row.appendChild(lbl);
 
     const valSpan = document.createElement("span");
-    valSpan.className = "slider-value";
-    valSpan.style.cssText =
-      "font-size:var(--font-size-sm); color:var(--color-text-muted);";
+    valSpan.className = "slider-value text-xs text-base-content/70";
     valSpan.textContent = `${value}%`;
     row.appendChild(valSpan);
     wrapper.appendChild(row);

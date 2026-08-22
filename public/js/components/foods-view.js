@@ -59,16 +59,13 @@ class FoodsView extends HTMLElement {
     const inner = document.createElement("div");
     inner.className = "view-inner";
 
-    // Header
     const header = document.createElement("h2");
-    header.style.cssText = "text-align:center; margin-bottom:var(--space-lg);";
+    header.className = "mb-4 text-center text-2xl font-bold";
     header.textContent = "Your Foods";
     inner.appendChild(header);
 
-    // "Add new food" button at top
     const addBtn = document.createElement("button");
-    addBtn.className = "btn-full";
-    addBtn.style.marginBottom = "var(--space-lg)";
+    addBtn.className = "btn btn-primary mb-5 w-full";
     addBtn.textContent = "Add a new food";
     addBtn.addEventListener("click", () => {
       console.log("[FoodsView] Add new food clicked");
@@ -88,13 +85,12 @@ class FoodsView extends HTMLElement {
     // Error state
     if (this._error) {
       const err = document.createElement("div");
-      err.className = "error-banner";
-      err.style.marginBottom = "var(--space-lg)";
+      err.className = "alert alert-error mb-5";
       err.textContent = this._error;
       inner.appendChild(err);
 
       const retryBtn = document.createElement("button");
-      retryBtn.className = "btn-full";
+      retryBtn.className = "btn btn-primary w-full";
       retryBtn.textContent = "Try again";
       retryBtn.addEventListener("click", async () => {
         this._loading = true;
@@ -107,38 +103,18 @@ class FoodsView extends HTMLElement {
       return;
     }
 
-    // Empty state
     if (this._foods.length === 0) {
       const empty = document.createElement("p");
-      empty.style.cssText =
-        "text-align:center; color:var(--color-text-muted); margin-bottom:var(--space-lg);";
+      empty.className = "mb-5 text-center text-sm text-base-content/70";
       empty.textContent = "No custom foods yet. Add one to get started!";
       inner.appendChild(empty);
     } else {
-      // Foods list
       const list = document.createElement("div");
-      list.style.cssText =
-        "display:flex; flex-direction:column; gap:var(--space-sm); margin-bottom:var(--space-lg); max-height:60vh; overflow-y:auto;";
+      list.className = "flex max-h-[60vh] flex-col gap-3 overflow-y-auto";
 
       for (const food of this._foods) {
         const item = document.createElement("div");
-        item.style.cssText = `
-          padding:var(--space-md);
-          border:var(--border);
-          background:var(--color-surface);
-          border-radius:4px;
-          cursor:pointer;
-          transition:background-color 0.2s;
-          display:flex;
-          gap:var(--space-md);
-          align-items:flex-start;
-        `;
-        item.addEventListener("mouseenter", () => {
-          item.style.backgroundColor = "var(--color-surface-alt)";
-        });
-        item.addEventListener("mouseleave", () => {
-          item.style.backgroundColor = "var(--color-surface)";
-        });
+        item.className = "card card-compact border border-base-300 bg-base-100 shadow-sm transition hover:bg-base-200 cursor-pointer";
         item.addEventListener("click", () => {
           console.log("[FoodsView] View food clicked:", food.foodId);
           this.dispatchEvent(
@@ -149,28 +125,27 @@ class FoodsView extends HTMLElement {
           );
         });
 
-        // Image
+        const body = document.createElement("div");
+        body.className = "card-body flex-row items-start gap-3 p-4";
+
         if (food.imageUrl) {
           const img = document.createElement("img");
           img.src = food.imageUrl;
-          img.style.cssText =
-            "width:80px; height:80px; border-radius:4px; object-fit:cover; flex-shrink:0;";
+          img.className = "h-20 w-20 rounded-box object-cover";
           img.alt = food.foodName;
-          item.appendChild(img);
+          body.appendChild(img);
         }
 
         const itemInner = document.createElement("div");
-        itemInner.style.flex = "1";
+        itemInner.className = "min-w-0 flex-1";
 
         const name = document.createElement("p");
-        name.style.cssText =
-          "margin:0 0 var(--space-xs); font-weight:var(--font-weight-bold);";
+        name.className = "mb-1 truncate font-semibold";
         name.textContent = food.foodName || "Unnamed";
         itemInner.appendChild(name);
 
         const meta = document.createElement("p");
-        meta.style.cssText =
-          "margin:0 0 var(--space-sm); font-size:var(--font-size-sm); color:var(--color-text-muted);";
+        meta.className = "text-sm text-base-content/70";
         const parts = [];
         if (food.brandName) parts.push(food.brandName);
         if (food.calories != null)
@@ -178,7 +153,8 @@ class FoodsView extends HTMLElement {
         meta.textContent = parts.join(" • ") || "No details";
         itemInner.appendChild(meta);
 
-        item.appendChild(itemInner);
+        body.appendChild(itemInner);
+        item.appendChild(body);
         list.appendChild(item);
       }
 

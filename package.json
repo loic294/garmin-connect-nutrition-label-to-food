@@ -1,0 +1,8 @@
+{
+  "name": "garmin-connect-nutrition-label-to-food",
+  "private": true,
+  "scripts": {
+    "dev": "bash -lc 'if [ ! -d .venv ]; then python3 -m venv .venv; fi; . .venv/bin/activate && python -m pip install -r backend/requirements.txt >/dev/null 2>&1 || true && cd backend && uvicorn main:app --host 127.0.0.1 --port 4173 --reload'",
+    "debug": "npm run dev"
+  }
+}

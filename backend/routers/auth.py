@@ -14,14 +14,16 @@ that thread.
 
 import asyncio
 import json
+import os
 import threading
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from garminconnect import Garmin
 from pydantic import BaseModel, EmailStr
 
-TOKEN_DIR = Path("/root/.garminconnect")
+TOKEN_DIR = Path(os.getenv("GARMIN_TOKEN_DIR", str(Path.home() / ".garminconnect")))
 CONFIG_FILE = TOKEN_DIR / "config.json"
 
 router = APIRouter()
@@ -38,11 +40,11 @@ class _LoginSession:
     def __init__(self) -> None:
         self._mfa_ready = threading.Event()
         self._done = threading.Event()
-        self._mfa_code: str | None = None
+        self._mfa_code: Optional[str] = None
         self.needs_mfa = False
         self.success = False
-        self.error: str | None = None
-        self.client: Garmin | None = None
+        self.error: Optional[str] = None
+        self.client: Optional[Garmin] = None
 
     # Called from the login thread when Garmin requests a code
     def _prompt_mfa(self) -> str:
@@ -59,8 +61,18 @@ def _run_login(session: _LoginSession, email: str, password: str) -> None:
     """Runs in a daemon thread — may block on MFA prompt."""
     try:
         TOKEN_DIR.mkdir(parents=True, exist_ok=True)
-        client = Garmin(email, password, prompt_mfa=session._prompt_mfa)
-        client.login(str(TOKEN_DIR))
+        client = Garmin(email, password)
+
+        # The installed garminconnect/garth version expects MFA to be passed to
+        # the underlying garth login call, not to Garmin.__init__.
+        client.garth.login(email, password, prompt_mfa=session._prompt_mfa)
+
+        client.display_name = client.garth.profile["displayName"]
+        client.full_name = client.garth.profile["fullName"]
+        settings = client.garth.connectapi("/userprofile-service/userprofile/user-settings")
+        client.unit_system = settings["userData"]["measurementSystem"]
+        client.garth.dump(str(TOKEN_DIR))
+
         session.client = client
         session.success = True
         # Persist the email so the server can restore the session after a restart
@@ -72,10 +84,17 @@ def _run_login(session: _LoginSession, email: str, password: str) -> None:
 
 
 async def _wait_for(session: _LoginSession, timeout_s: float = 30.0) -> None:
-    """Await up to *timeout_s* for the login thread to finish or request MFA."""
+    """Await until the login thread finishes or pauses awaiting MFA.
+
+    Important: a pending MFA challenge is only a temporary state. After the user
+    submits a code via /mfa, we must keep waiting for the login thread to finish,
+    not return immediately because `needs_mfa` is still true.
+    """
     elapsed = 0.0
     while elapsed < timeout_s:
-        if session._done.is_set() or session.needs_mfa:
+        if session._done.is_set():
+            return
+        if session.needs_mfa and not session._mfa_ready.is_set():
             return
         await asyncio.sleep(0.1)
         elapsed += 0.1
@@ -137,7 +156,7 @@ async def login(body: LoginRequest, request: Request):
 
 @router.post("/mfa")
 async def mfa(body: MFARequest, request: Request):
-    session: _LoginSession | None = request.app.state.pending_login
+    session: Optional[_LoginSession] = request.app.state.pending_login
     if session is None or not session.needs_mfa:
         raise HTTPException(status_code=400, detail="No pending MFA challenge")
 
@@ -156,7 +175,7 @@ async def mfa(body: MFARequest, request: Request):
 
 @router.post("/logout")
 async def logout(request: Request):
-    client: Garmin | None = request.app.state.garmin_client
+    client: Optional[Garmin] = request.app.state.garmin_client
     if client:
         try:
             client.logout(str(TOKEN_DIR))
