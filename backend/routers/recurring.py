@@ -79,7 +79,7 @@ def _response_json(response):
 
 
 def _get_daily_meal_id(client, meal_date, meal_time):
-    response = client.garth.request(
+    response = client.client.request(
         "GET",
         "connectapi",
         f"/nutrition-service/meals/{meal_date}",
@@ -114,14 +114,16 @@ def _get_custom_food(client, food_id):
     page_size = 20
 
     while True:
-        response = client.garth.request(
+        response = client.client.request(
             "GET",
             "connectapi",
-            (
-                "/nutrition-service/customFood"
-                f"?searchExpression=&start={start}&limit={page_size}"
-                "&includeContent=true"
-            ),
+            "/nutrition-service/customFood",
+            params={
+                "searchExpression": "",
+                "start": start,
+                "limit": page_size,
+                "includeContent": "true",
+            },
             api=True,
         )
         payload = _response_json(response)
@@ -139,10 +141,11 @@ def _get_custom_food(client, food_id):
 
 
 def _get_custom_meal(client, custom_meal_id):
-    response = client.garth.request(
+    response = client.client.request(
         "GET",
         "connectapi",
-        f"/nutrition-service/customMeal?customMealId={custom_meal_id}",
+        "/nutrition-service/customMeal",
+        params={"customMealId": custom_meal_id},
         api=True,
     )
     meals = _response_json(response).get("customMeals", [])
@@ -214,7 +217,7 @@ def log_schedule(client, schedule, meal_date):
         "mealDate": meal_date,
         "foodLogItems": items,
     }
-    client.garth.request(
+    client.client.request(
         "PUT",
         "connectapi",
         "/nutrition-service/food/logs",

@@ -21,7 +21,6 @@ from garminconnect import (
     GarminConnectAuthenticationError,
     GarminConnectConnectionError,
 )
-from garth.exc import GarthHTTPError
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -120,10 +119,11 @@ async def get_meals(client: Garmin = Depends(get_garmin_client)):
 
     try:
         while True:
-            response = client.garth.request(
+            response = client.client.request(
                 "GET",
                 "connectapi",
-                f"/nutrition-service/customMeal?start={start}&limit={page_size}",
+                "/nutrition-service/customMeal",
+                params={"start": start, "limit": page_size},
                 api=True,
             )
             payload = response.json()
@@ -158,7 +158,7 @@ async def get_meals(client: Garmin = Depends(get_garmin_client)):
         ]
     except GarminConnectAuthenticationError as exc:
         raise HTTPException(status_code=401, detail=f"Auth failed: {exc}")
-    except (GarminConnectConnectionError, GarthHTTPError) as exc:
+    except GarminConnectConnectionError as exc:
         raise HTTPException(status_code=502, detail=f"Failed to fetch meals: {exc}")
     except (TypeError, ValueError) as exc:
         logger.exception("Garmin returned an invalid meals payload")
@@ -177,10 +177,16 @@ async def get_custom_foods(client: Garmin = Depends(get_garmin_client)):
     try:
         # Use the authenticated client to call the Garmin API directly via the
         # garth client, which is the API exposed by the installed library version.
-        response = client.garth.request(
+        response = client.client.request(
             "GET",
             "connectapi",
-            "/nutrition-service/customFood?searchExpression=&start=0&limit=20&includeContent=true",
+            "/nutrition-service/customFood",
+            params={
+                "searchExpression": "",
+                "start": 0,
+                "limit": 20,
+                "includeContent": "true",
+            },
             api=True,
         )
         foods_data = response.json()
@@ -251,10 +257,16 @@ async def get_food_detail(
     """
     try:
         # Fetch all foods and find the one with matching foodId
-        response = client.garth.request(
+        response = client.client.request(
             "GET",
             "connectapi",
-            "/nutrition-service/customFood?searchExpression=&start=0&limit=20&includeContent=true",
+            "/nutrition-service/customFood",
+            params={
+                "searchExpression": "",
+                "start": 0,
+                "limit": 20,
+                "includeContent": "true",
+            },
             api=True,
         )
         foods_data = response.json()
@@ -359,7 +371,7 @@ async def create_food(
     }
 
     try:
-        response = client.garth.request(
+        response = client.client.request(
             "PUT",
             "connectapi",
             GARMIN_CUSTOM_FOOD_PATH,
@@ -436,7 +448,7 @@ async def upload_food_photo(
 
     try:
         # client.client.post() returns a dict directly
-        resp = client.garth.post(
+        resp = client.client.post(
             "connectapi",
             f"/nutrition-service/food/upload-image/NUTRITION_CUSTOM_FOOD/{food_id}",
             files={"file": (filename, image_bytes, media_type)},
@@ -468,10 +480,16 @@ async def upload_food_photo(
                 logger.info(f"New food detected - associating photo {media_uuid} with food {food_id}")
                 
                 # Fetch the current food to get its full structure
-                foods_response = client.garth.request(
+                foods_response = client.client.request(
                     "GET",
                     "connectapi",
-                    f"/nutrition-service/customFood?searchExpression=&start=0&limit=20&includeContent=true",
+                    "/nutrition-service/customFood",
+                    params={
+                        "searchExpression": "",
+                        "start": 0,
+                        "limit": 20,
+                        "includeContent": "true",
+                    },
                     api=True,
                 ).json()
                 foods_list = foods_response.get("customFoods", [])
@@ -491,7 +509,7 @@ async def upload_food_photo(
                     )
                 
                 # Update the food with a PUT to trigger photo association
-                update_response = client.garth.request(
+                update_response = client.client.request(
                     "PUT",
                     "connectapi",
                     "/nutrition-service/customFood",

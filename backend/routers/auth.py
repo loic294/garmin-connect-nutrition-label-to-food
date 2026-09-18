@@ -67,7 +67,7 @@ def _run_login(session: _LoginSession, email: str, password: str) -> None:
         TOKEN_DIR.mkdir(parents=True, exist_ok=True)
         client = Garmin(email, password, prompt_mfa=session._prompt_mfa)
         client.login()
-        client.garth.dump(str(TOKEN_DIR))
+        client.client.dump(str(TOKEN_DIR))
 
         session.client = client
         session.success = True
