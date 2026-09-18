@@ -21,6 +21,31 @@ TOKEN_DIR = Path(os.getenv("GARMIN_TOKEN_DIR", str(Path.home() / ".garminconnect
 PUBLIC_DIR = Path(__file__).parent.parent / "public"
 
 
+def restore_saved_garmin_session():
+    from garminconnect import Garmin
+
+    oauth1_file = TOKEN_DIR / "oauth1_token.json"
+    oauth2_file = TOKEN_DIR / "oauth2_token.json"
+    legacy_file = TOKEN_DIR / "garmin_tokens.json"
+
+    client = Garmin()
+    if oauth1_file.exists() and oauth2_file.exists():
+        client.login(str(TOKEN_DIR))
+    elif legacy_file.exists():
+        legacy_tokens = legacy_file.read_text().strip()
+        if not legacy_tokens:
+            raise ValueError("Legacy Garmin token file is empty")
+        client.login(legacy_tokens)
+        client.garth.dump(str(TOKEN_DIR))
+        oauth1_file.chmod(0o600)
+        oauth2_file.chmod(0o600)
+        logging.getLogger(__name__).info("Migrated legacy Garmin token store")
+    else:
+        return None
+
+    return client
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialise mutable app state
@@ -30,19 +55,19 @@ async def lifespan(app: FastAPI):
 
     # Try to restore a previous Garmin session from the persisted token store
     TOKEN_DIR.mkdir(parents=True, exist_ok=True)
-    token_files = (
-        TOKEN_DIR / "garmin_tokens.json",
-        TOKEN_DIR / "oauth1_token.json",
-        TOKEN_DIR / "oauth2_token.json",
-    )
-    if any(token_file.exists() for token_file in token_files):
+    if any(
+        token_file.exists()
+        for token_file in (
+            TOKEN_DIR / "garmin_tokens.json",
+            TOKEN_DIR / "oauth1_token.json",
+            TOKEN_DIR / "oauth2_token.json",
+        )
+    ):
         try:
-            from garminconnect import Garmin
-
-            client = Garmin()
-            client.login(str(TOKEN_DIR))
+            client = restore_saved_garmin_session()
             app.state.garmin_client = client
-            logging.getLogger(__name__).info("Restored saved Garmin session")
+            if client is not None:
+                logging.getLogger(__name__).info("Restored saved Garmin session")
         except Exception as exc:
             app.state.auth_restore_error = str(exc)
             logging.getLogger(__name__).exception(
