@@ -42,6 +42,10 @@ app-root {
   padding: 1.25rem 1rem 2rem;
 }
 
+.view-inner.review-page {
+  width: min(100%, 72rem);
+}
+
 button,
 input,
 select,
