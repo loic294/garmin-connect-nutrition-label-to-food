@@ -13,8 +13,11 @@ import "./components/recurring-food-view.js";
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {
-      // Service worker registration failure is non-fatal
-    });
+    navigator.serviceWorker
+      .register("/sw.js", { updateViaCache: "none" })
+      .then((registration) => registration.update())
+      .catch(() => {
+        // Service worker registration failure is non-fatal
+      });
   });
 }

@@ -102,17 +102,26 @@ async def serve_spa_or_static(full_path: str):
     # Try to serve the requested file
     requested_path = PUBLIC_DIR / full_path
     if requested_path.exists() and requested_path.is_file():
-        return FileResponse(requested_path)
+        return FileResponse(
+            requested_path,
+            headers={"Cache-Control": "no-cache"},
+        )
     
     # If it's a directory, try index.html
     if requested_path.exists() and requested_path.is_dir():
         index_path = requested_path / "index.html"
         if index_path.exists():
-            return FileResponse(index_path)
+            return FileResponse(
+                index_path,
+                headers={"Cache-Control": "no-cache"},
+            )
     
     # Otherwise, serve index.html for SPA routing
     index_path = PUBLIC_DIR / "index.html"
     if index_path.exists():
-        return FileResponse(index_path)
+        return FileResponse(
+            index_path,
+            headers={"Cache-Control": "no-cache"},
+        )
     
     return {"error": "Not found"}
