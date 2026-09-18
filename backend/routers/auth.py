@@ -16,15 +16,18 @@ import asyncio
 import json
 import os
 import threading
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
-from garminconnect import Garmin
-from pydantic import BaseModel, EmailStr
+from garminconnect import Garmin, GarminConnectTooManyRequestsError
+from pydantic import BaseModel
 
 TOKEN_DIR = Path(os.getenv("GARMIN_TOKEN_DIR", str(Path.home() / ".garminconnect")))
 CONFIG_FILE = TOKEN_DIR / "config.json"
+LOGIN_STATE_FILE = TOKEN_DIR / "login-state.json"
+RATE_LIMIT_COOLDOWN = timedelta(hours=6)
 
 router = APIRouter()
 
@@ -44,6 +47,7 @@ class _LoginSession:
         self.needs_mfa = False
         self.success = False
         self.error: Optional[str] = None
+        self.rate_limited = False
         self.client: Optional[Garmin] = None
 
     # Called from the login thread when Garmin requests a code
@@ -61,22 +65,17 @@ def _run_login(session: _LoginSession, email: str, password: str) -> None:
     """Runs in a daemon thread — may block on MFA prompt."""
     try:
         TOKEN_DIR.mkdir(parents=True, exist_ok=True)
-        client = Garmin(email, password)
-
-        # The installed garminconnect/garth version expects MFA to be passed to
-        # the underlying garth login call, not to Garmin.__init__.
-        client.garth.login(email, password, prompt_mfa=session._prompt_mfa)
-
-        client.display_name = client.garth.profile["displayName"]
-        client.full_name = client.garth.profile["fullName"]
-        settings = client.garth.connectapi("/userprofile-service/userprofile/user-settings")
-        client.unit_system = settings["userData"]["measurementSystem"]
+        client = Garmin(email, password, prompt_mfa=session._prompt_mfa)
+        client.login()
         client.garth.dump(str(TOKEN_DIR))
 
         session.client = client
         session.success = True
         # Persist the email so the server can restore the session after a restart
         CONFIG_FILE.write_text(json.dumps({"email": email}))
+    except GarminConnectTooManyRequestsError as exc:
+        session.rate_limited = True
+        session.error = str(exc)
     except Exception as exc:
         session.error = str(exc)
     finally:
@@ -114,6 +113,48 @@ class MFARequest(BaseModel):
     code: str
 
 
+def _read_cooldown_until() -> Optional[datetime]:
+    if not LOGIN_STATE_FILE.exists():
+        return None
+
+    try:
+        state = json.loads(LOGIN_STATE_FILE.read_text())
+        cooldown = datetime.fromisoformat(state["cooldownUntil"])
+        return cooldown if cooldown.tzinfo else cooldown.replace(tzinfo=timezone.utc)
+    except (OSError, ValueError, KeyError, json.JSONDecodeError):
+        return None
+
+
+def _set_rate_limit_cooldown() -> datetime:
+    TOKEN_DIR.mkdir(parents=True, exist_ok=True)
+    cooldown_until = datetime.now(timezone.utc) + RATE_LIMIT_COOLDOWN
+    LOGIN_STATE_FILE.write_text(
+        json.dumps({"cooldownUntil": cooldown_until.isoformat()})
+    )
+    return cooldown_until
+
+
+def _clear_rate_limit_cooldown() -> None:
+    if LOGIN_STATE_FILE.exists():
+        LOGIN_STATE_FILE.unlink()
+
+
+def _rate_limit_response(cooldown_until: datetime) -> HTTPException:
+    retry_after = max(
+        1,
+        int((cooldown_until - datetime.now(timezone.utc)).total_seconds()),
+    )
+    return HTTPException(
+        status_code=429,
+        detail=(
+            "Garmin has temporarily rate-limited sign-in attempts. "
+            "Do not retry yet; repeated attempts can extend the block. "
+            f"Try again after {cooldown_until.isoformat()}."
+        ),
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -122,13 +163,29 @@ class MFARequest(BaseModel):
 @router.get("/status")
 async def status(request: Request):
     """Return whether the server currently holds a valid Garmin session."""
-    return {"authenticated": request.app.state.garmin_client is not None}
+    authenticated = request.app.state.garmin_client is not None
+    return {
+        "authenticated": authenticated,
+        "restoreError": (
+            None if authenticated else request.app.state.auth_restore_error
+        ),
+    }
 
 
 @router.post("/login")
 async def login(body: LoginRequest, request: Request):
-    # Cancel any stale pending session
-    request.app.state.pending_login = None
+    cooldown_until = _read_cooldown_until()
+    if cooldown_until and cooldown_until > datetime.now(timezone.utc):
+        raise _rate_limit_response(cooldown_until)
+    if cooldown_until:
+        _clear_rate_limit_cooldown()
+
+    pending_session: Optional[_LoginSession] = request.app.state.pending_login
+    if pending_session is not None and not pending_session._done.is_set():
+        raise HTTPException(
+            status_code=409,
+            detail="A Garmin sign-in attempt is already in progress.",
+        )
 
     session = _LoginSession()
     request.app.state.pending_login = session
@@ -147,10 +204,14 @@ async def login(body: LoginRequest, request: Request):
 
     if session.success and session.client:
         request.app.state.garmin_client = session.client
+        request.app.state.auth_restore_error = None
         request.app.state.pending_login = None
+        _clear_rate_limit_cooldown()
         return {"status": "success"}
 
     request.app.state.pending_login = None
+    if session.rate_limited:
+        raise _rate_limit_response(_set_rate_limit_cooldown())
     raise HTTPException(status_code=401, detail=session.error or "Login failed")
 
 
@@ -166,10 +227,14 @@ async def mfa(body: MFARequest, request: Request):
 
     if session.success and session.client:
         request.app.state.garmin_client = session.client
+        request.app.state.auth_restore_error = None
         request.app.state.pending_login = None
+        _clear_rate_limit_cooldown()
         return {"status": "success"}
 
     request.app.state.pending_login = None
+    if session.rate_limited:
+        raise _rate_limit_response(_set_rate_limit_cooldown())
     raise HTTPException(status_code=401, detail=session.error or "MFA login failed")
 
 

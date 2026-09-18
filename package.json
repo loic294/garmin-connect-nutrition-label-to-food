@@ -2,7 +2,7 @@
   "name": "garmin-connect-nutrition-label-to-food",
   "private": true,
   "scripts": {
-    "dev": "bash -lc 'if [ ! -d .venv ]; then python3 -m venv .venv; fi; . .venv/bin/activate && python -m pip install -r backend/requirements.txt >/dev/null 2>&1 || true && cd backend && uvicorn main:app --host 127.0.0.1 --port 4173 --reload'",
+    "dev": "bash -lc 'if ! command -v python3.12 >/dev/null 2>&1; then echo \"Python 3.12 is required\" >&2; exit 1; fi; if [ ! -d .venv312 ]; then python3.12 -m venv .venv312; fi; . .venv312/bin/activate && python -m pip install -r backend/requirements.txt && cd backend && uvicorn main:app --host 127.0.0.1 --port 4173 --reload'",
     "debug": "npm run dev"
   }
 }

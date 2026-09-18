@@ -26,25 +26,28 @@ async def lifespan(app: FastAPI):
     # Initialise mutable app state
     app.state.garmin_client = None
     app.state.pending_login = None
+    app.state.auth_restore_error = None
 
     # Try to restore a previous Garmin session from the persisted token store
     TOKEN_DIR.mkdir(parents=True, exist_ok=True)
-    config_path = TOKEN_DIR / "config.json"
-    if config_path.exists():
-        import json
+    token_files = (
+        TOKEN_DIR / "garmin_tokens.json",
+        TOKEN_DIR / "oauth1_token.json",
+        TOKEN_DIR / "oauth2_token.json",
+    )
+    if any(token_file.exists() for token_file in token_files):
+        try:
+            from garminconnect import Garmin
 
-        cfg = json.loads(config_path.read_text())
-        email = cfg.get("email", "")
-        if email:
-            try:
-                from garminconnect import Garmin
-
-                client = Garmin(email, "")
-                client.login(str(TOKEN_DIR))
-                app.state.garmin_client = client
-            except Exception:
-                # Tokens stale or absent — user must re-login via the PWA
-                pass
+            client = Garmin()
+            client.login(str(TOKEN_DIR))
+            app.state.garmin_client = client
+            logging.getLogger(__name__).info("Restored saved Garmin session")
+        except Exception as exc:
+            app.state.auth_restore_error = str(exc)
+            logging.getLogger(__name__).exception(
+                "Failed to restore saved Garmin session"
+            )
 
     scheduler_task = asyncio.create_task(recurring.scheduler_loop(app))
     try:
